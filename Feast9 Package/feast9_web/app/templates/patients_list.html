@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Patients — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+  <h2 style="margin:0;">Patients <span class="muted" style="font-size:0.95rem;">({{ result.total }})</span></h2>
+  <a href="{{ url_for('patients.new_patient') }}" class="btn btn-primary">+ Add Patient</a>
+</div>
+
+<form method="get" class="search-row">
+  <input type="text" name="q" placeholder="Search by name, mobile, or email…" value="{{ search }}">
+  <button type="submit" class="btn btn-secondary">Search</button>
+  {% if search %}<a href="{{ url_for('patients.list_patients') }}" class="btn btn-secondary">Clear</a>{% endif %}
+</form>
+
+<div class="card">
+  {% if not result.patients %}
+    <p class="empty-state">No patients found{% if search %} for "{{ search }}"{% endif %}.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Age/Sex</th><th>Mobile</th><th>Last Visited</th><th>Active Cases</th><th class="text-right">Outstanding</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for p in result.patients %}
+        <tr>
+          <td>
+            <a href="{{ url_for('patients.patient_detail', patient_id=p.id) }}"><b>{{ p.name }}</b></a>
+            {% set fs = followup_status.get(p.id) %}
+            {% if fs == 'overdue' %}<span title="Follow-up overdue" style="margin-left:5px;">🔴</span>
+            {% elif fs == 'upcoming' %}<span title="Follow-up due soon (next 3 days)" style="margin-left:5px;">🟡</span>
+            {% endif %}
+          </td>
+          <td>{{ p.age or "—" }} / {{ p.sex or "—" }}</td>
+          <td>{{ p.mobile }}</td>
+          <td>{{ p.last_visited_date or "—" }}</td>
+          <td>{% if p.active_cases %}<span class="badge badge-active">{{ p.active_cases }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+          <td class="text-right">
+            {% if p.outstanding > 0 %}<span class="balance-pos">₹{{ "{:,.0f}".format(p.outstanding) }}</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td><a href="{{ url_for('patients.patient_detail', patient_id=p.id) }}" class="btn btn-secondary btn-sm">View</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if result.pages > 1 %}
+  <div class="pagination">
+    {% for pg in range(1, result.pages + 1) %}
+      {% if pg == result.page %}
+        <span class="current">{{ pg }}</span>
+      {% else %}
+        <a href="{{ url_for('patients.list_patients', q=search, page=pg) }}">{{ pg }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

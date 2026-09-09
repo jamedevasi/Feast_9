@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit Case" if case and case.id else "New Case" }} — {{ patient.name }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}">&larr; {{ patient.name }}</a></p>
+<h2>{{ "Edit Case" if case and case.id else "New Treatment Case" }}</h2>
+
+{% if not procedure_types %}
+  <div class="flash flash-warning">No procedure/case types are set up yet.
+    <a href="{{ url_for('procedure_types.list_procedure_types') }}">Add some here</a> before creating a case, or just use the custom field below.</div>
+{% endif %}
+
+<div class="card" style="max-width:720px;">
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Case Title <span class="required-mark">*</span></label>
+      <input type="text" name="title" value="{{ case.title if case else '' }}" placeholder="e.g. Upper molar RCT &amp; crown" required autofocus>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status">
+          {% for s in status_options %}
+            <option value="{{ s }}" {{ "selected" if case and case.status == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Doctor</label>
+        <select name="doctor_id">
+          <option value="">— Select —</option>
+          {% for d in doctors %}
+            <option value="{{ d.id }}" {{ "selected" if case and case.doctor_id == d.id }}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+        {% if not doctors %}<div class="help-text">No doctors yet — <a href="{{ url_for('doctors.list_doctors') }}">add one</a>.</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Procedure(s) <span class="muted">(select one or more from the standard list)</span></label>
+      <select name="procedures" multiple size="8">
+        {% for pt in procedure_types %}
+          <option value="{{ pt.name }}" {{ "selected" if case and pt.name in (case.procedures or []) }}>{{ pt.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="help-text">Ctrl/Cmd-click (or tap on mobile) to select multiple. Manage this list under "Case Types" in the nav.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Additional / Custom Procedure Details <span class="muted">(optional free text)</span></label>
+      <input type="text" name="custom_procedure" value="{{ case.custom_procedure if case else '' }}" placeholder="Anything not covered above…">
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Total Cost (₹) <span class="required-mark">*</span></label>
+        {% if case and case.id %}
+          <input type="number" name="total_cost" step="0.01" min="0" value="{{ case.total_cost }}" readonly style="background:#F4F4F0; color:var(--muted);">
+          <div class="help-text">To change the cost estimate (e.g. scope changed mid-treatment), use <b>Revise Estimate</b> on the case page instead — it keeps a dated history of why it changed. <a href="{{ url_for('cases.case_detail', case_id=case.id, _anchor='cost-history') }}">Go there now &rarr;</a></div>
+        {% else %}
+          <input type="number" name="total_cost" step="0.01" min="0" value="0" required>
+        {% endif %}
+      </div>
+      <div class="form-group">
+        <label>Follow-up Date</label>
+        <input type="date" name="follow_up_date" value="{{ case.follow_up_date if case else '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Next Action Note</label>
+      <textarea name="next_action_note" rows="2" placeholder="e.g. Crown fitting at next visit">{{ case.next_action_note if case else '' }}</textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Save Case</button>
+      {% if case and case.id %}
+        <a href="{{ url_for('cases.case_detail', case_id=case.id) }}" class="btn btn-secondary">Cancel</a>
+      {% else %}
+        <a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}" class="btn btn-secondary">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

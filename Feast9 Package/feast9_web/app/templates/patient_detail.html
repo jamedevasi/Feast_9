@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}{{ patient.name }} — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+  <div>
+    <h2 style="margin-bottom:2px;">{{ patient.name }}
+      {% if patient.is_minor %}<span class="badge badge-overdue" style="font-size:0.72rem;vertical-align:middle;">Minor</span>{% endif %}
+    </h2>
+    <p class="muted" style="margin-top:0;">{{ patient.age or '—' }} yrs · {{ patient.sex or '—' }} · {{ patient.mobile }}{% if patient.is_historic_import %} · <em>imported</em>{% endif %}</p>
+  </div>
+  <div class="btn-row">
+    <a href="{{ url_for('patients.print_patient_summary', patient_id=patient.id) }}" target="_blank" class="btn btn-secondary">🖨 Print Summary</a>
+    <a href="{{ url_for('appointments.new_appointment', patient_id=patient.id) }}" class="btn btn-secondary">📅 Schedule</a>
+    <a href="{{ url_for('patients.edit_patient', patient_id=patient.id) }}" class="btn btn-secondary">Edit</a>
+    <a href="{{ url_for('data_rights.new_request', patient_id=patient.id) }}" class="btn btn-secondary" title="Log DPDP data rights request">🔒 Data Rights</a>
+    <form method="post" action="{{ url_for('patients.delete_patient', patient_id=patient.id) }}" data-confirm="Delete {{ patient.name }} and ALL their case history? This cannot be undone.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+{# 1. Medical alerts — safety critical, always first #}
+{% if patient.has_medical_alerts %}
+<div class="card" style="background:#FFF8E1;border-color:#F9A825;margin-top:10px;">
+  <h4 style="margin:0 0 8px;color:#5D4000;">⚠ Medical Alerts</h4>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:0.88rem;">
+    {% if patient.medical_conditions %}
+    <div><b>Conditions:</b> {{ patient.medical_conditions | join(', ') }}{% if patient.medical_conditions_other %} · {{ patient.medical_conditions_other }}{% endif %}</div>{% endif %}
+    {% if patient.allergies %}
+    <div style="color:#C62828;"><b>⚠ Allergies:</b> {{ patient.allergies | join(', ') }}{% if patient.allergies_other %} · {{ patient.allergies_other }}{% endif %}</div>{% endif %}
+    {% if patient.is_pregnant %}<div style="color:#C62828;"><b>Currently pregnant</b></div>{% endif %}
+    {% if patient.is_nursing %}<div><b>Nursing mother</b></div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# 2. Active cases — primary clinical context #}
+{% set active_cases = cases | selectattr('status','equalto','Active') | list %}
+{% set closed_cases = cases | selectattr('status','equalto','Closed') | list %}
+<div class="card" style="margin-top:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <h3 style="margin:0;">Treatment Cases
+      <span class="badge badge-active" style="margin-left:6px;">{{ active_cases|length }} active</span>
+      {% if closed_cases %}<span class="badge badge-closed">{{ closed_cases|length }} closed</span>{% endif %}
+    </h3>
+    <a href="{{ url_for('cases.new_case', patient_id=patient.id) }}" class="btn btn-primary btn-sm">+ New Case</a>
+  </div>
+  {% if not cases %}
+    <p class="empty-state">No cases yet. <a href="{{ url_for('cases.new_case', patient_id=patient.id) }}">Open the first case</a></p>
+  {% else %}
+    {% for c in active_cases + closed_cases %}
+    <div style="border:1px solid {{ '#2E7D32' if c.status == 'Active' else 'var(--border)' }};border-radius:8px;padding:10px 14px;margin-bottom:8px;background:{{ 'var(--accent)' if c.status == 'Active' else 'transparent' }};">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:6px;">
+        <div>
+          <a href="{{ url_for('cases.case_detail', case_id=c.id) }}" style="font-weight:700;font-size:1rem;">{{ c.title }}</a>
+          {% if c.status == 'Active' %}<span class="badge badge-active" style="margin-left:6px;">Active</span>
+          {% else %}<span class="badge badge-closed" style="margin-left:6px;">Closed</span>{% endif %}
+          <br><span class="muted" style="font-size:0.82rem;">{{ c.doctor_name or '—' }} · opened {{ c.created_at[:10] }}</span>
+        </div>
+        <a href="{{ url_for('cases.case_detail', case_id=c.id) }}" class="btn btn-secondary btn-sm">Open</a>
+      </div>
+      {% if c.next_action_note %}
+      <p style="margin:6px 0 0;font-size:0.85rem;"><b>Next:</b> {{ c.next_action_note }}
+        {% if c.follow_up_date %}<span class="{{ 'badge badge-overdue' if c.follow_up_date < today_str else 'muted' }}"> · {{ c.follow_up_date }}</span>{% endif %}
+      </p>{% endif %}
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+{# 3. Appointments #}
+{% if appointments %}
+<div class="card" style="margin-top:12px;">
+  <h3 style="margin-bottom:8px;">Appointments</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Time</th><th>Doctor</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for a in appointments[:6] %}
+      <tr>
+        <td>{{ a.appt_date }}</td>
+        <td>{{ a.start_time }}{% if a.end_time %} – {{ a.end_time }}{% endif %}</td>
+        <td>{% if a.doctor_name %}<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{ a.doctor_color }};margin-right:5px;"></span>{{ a.doctor_name }}{% else %}—{% endif %}</td>
+        <td>{{ a.title or "—" }}</td>
+        <td>{% if a.status == 'Scheduled' %}<span class="badge badge-active">Scheduled</span>{% elif a.status == 'Cancelled' %}<span class="badge badge-overdue">Cancelled</span>{% else %}<span class="badge badge-closed">{{ a.status }}</span>{% endif %}</td>
+        <td><a href="{{ url_for('appointments.edit_appointment', appt_id=a.id) }}" class="btn btn-secondary btn-sm">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{# 4. Contact + DPDP — below clinical sections #}
+<div class="grid grid-2" style="margin-top:12px;align-items:start;">
+  <div class="card">
+    <h3 style="margin-bottom:8px;">Contact Details</h3>
+    <div class="kv-list">
+      <div class="kv-row"><span class="kv-label">Mobile</span><span>{{ patient.mobile }}</span></div>
+      <div class="kv-row"><span class="kv-label">Email</span><span>{{ patient.email or "—" }}</span></div>
+      <div class="kv-row"><span class="kv-label">Address</span><span>{{ patient.address or "—" }}</span></div>
+      <div class="kv-row"><span class="kv-label">Last Visited</span><span>{{ patient.last_visited_date or "—" }}</span></div>
+      {% if patient.emergency_contact_name %}
+      <div class="kv-row"><span class="kv-label">Emergency</span><span>{{ patient.emergency_contact_name }} ({{ patient.emergency_contact_relation or "—" }}) {{ patient.emergency_contact_number }}</span></div>
+      {% endif %}
+      {% if patient.is_minor and patient.guardian_name %}
+      <div class="kv-row"><span class="kv-label">Guardian</span><span>{{ patient.guardian_name }} ({{ patient.guardian_relation or "—" }}) {{ patient.guardian_mobile }}</span></div>
+      {% elif patient.needs_guardian %}
+      <div class="kv-row"><span class="kv-label">Guardian</span><span style="color:#C62828;">⚠ Not on file — required for minors</span></div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:8px;">DPDP Compliance</h3>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:0.85rem;">
+      {% if patient.dpdp_notice_accepted %}
+        <span class="badge" style="background:var(--accent);color:var(--primary-dark);border:1px solid var(--accent-2);display:inline-block;">✓ Data Processing Notice Acknowledged</span>
+        {% if patient.dpdp_notice_accepted_at %}<span class="muted" style="font-size:0.78rem;">on {{ patient.dpdp_notice_accepted_at[:10] }}</span>{% endif %}
+      {% else %}
+        <span class="badge badge-overdue" style="display:inline-block;">⚠ Notice Not Yet Acknowledged</span>
+        <span class="muted" style="font-size:0.78rem;">Show notice at next visit and update via <a href="{{ url_for('patients.edit_patient', patient_id=patient.id) }}">Edit Patient</a>.</span>
+      {% endif %}
+      {% if patient.comms_consent %}
+        <span class="badge" style="background:var(--accent);color:var(--primary-dark);border:1px solid var(--accent-2);display:inline-block;">✓ Communications Consent Given</span>
+      {% else %}
+        <span class="badge badge-closed" style="display:inline-block;">No Communications Consent</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

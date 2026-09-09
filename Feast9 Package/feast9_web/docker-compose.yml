@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  master-dentizt:
+    build: .
+    image: master-dentizt:latest
+    container_name: master-dentizt
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-please-change-this-secret-key}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-1}
+      - DATA_DIR=/data
+    volumes:
+      - feast9_data:/data
+
+volumes:
+  feast9_data:

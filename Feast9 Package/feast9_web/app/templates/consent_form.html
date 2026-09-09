@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Consent Form — {{ patient.name }}{% endblock %}
+{% block extra_head %}
+<style>
+  #sig-pad-wrap {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    background: #fff;
+    touch-action: none;
+  }
+  #sig-pad { display: block; width: 100%; height: 180px; cursor: crosshair; }
+  .mode-toggle { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mode-toggle label {
+    flex: 1; text-align: center; padding: 10px; border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer; font-weight: 600; color: var(--muted);
+    margin-bottom: 0;
+  }
+  .mode-toggle input { display: none; }
+  .mode-toggle input:checked + span { color: var(--primary-dark); }
+  .mode-toggle label.active { background: var(--accent); border-color: var(--primary); color: var(--primary-dark); }
+</style>
+{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('cases.case_detail', case_id=case.id) }}">&larr; {{ case.title }}</a></p>
+<h2>New Consent Form</h2>
+<p class="muted">For {{ patient.name }} — {{ case.title }}</p>
+
+<div class="card" style="max-width:680px;">
+  <form method="post" enctype="multipart/form-data" id="consent-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+      <label>Consent Text <span class="required-mark">*</span></label>
+      <textarea name="consent_text" rows="9" required>{{ form_state.consent_text if form_state else default_text }}</textarea>
+      <div class="help-text">Edit as needed before signing — this exact wording becomes part of the permanent record.</div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="signed_date" id="signed_date_input" value="{{ form_state.signed_date if form_state else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Witness Name <span class="muted">(optional)</span></label>
+        <input type="text" name="witness_name" value="{{ form_state.witness_name if form_state else '' }}">
+      </div>
+    </div>
+
+    <hr class="sep">
+
+    <div class="mode-toggle">
+      <label id="label-drawn" class="active">
+        <input type="radio" name="signature_mode" value="drawn" checked onchange="setMode('drawn')">
+        <span>✍️ Sign on screen</span>
+      </label>
+      <label id="label-uploaded">
+        <input type="radio" name="signature_mode" value="uploaded" onchange="setMode('uploaded')">
+        <span>📎 Upload a signed copy</span>
+      </label>
+    </div>
+
+    <div id="drawn-section">
+      <label>Patient Signature</label>
+      <div id="sig-pad-wrap">
+        <canvas id="sig-pad"></canvas>
+      </div>
+      <input type="hidden" name="drawn_signature" id="drawn_signature_input">
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="clearSig()">Clear</button>
+      </div>
+      <div class="help-text">Sign above with mouse, finger, or stylus. If signing in person isn't possible right now, switch to "Upload a signed copy" instead.</div>
+    </div>
+
+    <div id="uploaded-section" style="display:none;">
+      <label>Upload Signed Copy <span class="required-mark">*</span></label>
+      <input type="file" name="signature_file" accept="image/png,image/jpeg,application/pdf">
+      <div class="help-text">A photo or scan of the printed form once the patient has signed it on paper. PNG/JPG/PDF, up to 10 MB.</div>
+      <div class="help-text">Need a blank copy to print first? <a href="{{ url_for('cases.blank_consent_pdf', case_id=case.id) }}" target="_blank">Print blank consent form</a></div>
+    </div>
+
+    <div class="form-group" style="margin-top:14px;">
+      <label>Notes <span class="muted">(optional)</span></label>
+      <input type="text" name="notes" value="{{ form_state.notes if form_state else '' }}">
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Save Consent</button>
+      <a href="{{ url_for('cases.case_detail', case_id=case.id) }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const canvas = document.getElementById("sig-pad");
+  const ctx = canvas.getContext("2d");
+  let drawing = false, hasInk = false;
+
+  function resizeCanvas() {
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#1B2B1E";
+  }
+  window.addEventListener("resize", function () {
+    const data = hasInk ? canvas.toDataURL() : null;
+    resizeCanvas();
+    if (data) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = data; }
+  });
+  resizeCanvas();
+
+  function pos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function start(e) { drawing = true; hasInk = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+  function move(e) { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+  function end() { drawing = false; }
+
+  canvas.addEventListener("mousedown", start);
+  canvas.addEventListener("mousemove", move);
+  canvas.addEventListener("mouseup", end);
+  canvas.addEventListener("mouseleave", end);
+  canvas.addEventListener("touchstart", start);
+  canvas.addEventListener("touchmove", move);
+  canvas.addEventListener("touchend", end);
+
+  function clearSig() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasInk = false;
+  }
+
+  function setMode(mode) {
+    document.getElementById("drawn-section").style.display = mode === "drawn" ? "block" : "none";
+    document.getElementById("uploaded-section").style.display = mode === "uploaded" ? "block" : "none";
+    document.getElementById("label-drawn").classList.toggle("active", mode === "drawn");
+    document.getElementById("label-uploaded").classList.toggle("active", mode === "uploaded");
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const d = document.getElementById("signed_date_input");
+    if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+  });
+
+  document.getElementById("consent-form").addEventListener("submit", function (e) {
+    const mode = document.querySelector('input[name="signature_mode"]:checked').value;
+    if (mode === "drawn") {
+      if (!hasInk) {
+        e.preventDefault();
+        alert("Please sign in the box before saving, or switch to 'Upload a signed copy'.");
+        return;
+      }
+      document.getElementById("drawn_signature_input").value = canvas.toDataURL("image/png");
+    }
+  });
+</script>
+{% endblock %}

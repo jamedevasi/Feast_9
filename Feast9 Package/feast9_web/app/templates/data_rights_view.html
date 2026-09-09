@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Data Request — {{ patient.name }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;">
+  <a href="{{ url_for('data_rights.list_requests') }}">&larr; All Data Rights Requests</a>
+</p>
+
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+  <div>
+    <h2 style="margin-bottom:2px;">{{ req.request_type }} Request</h2>
+    <p class="muted" style="margin:0;">
+      Patient: <a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}"><b>{{ patient.name }}</b></a>
+      &nbsp;&middot;&nbsp; Requested: {{ req.requested_at[:10] }}
+      &nbsp;&middot;&nbsp; Deadline: <b>{{ req.deadline_at }}</b>
+    </p>
+  </div>
+  <div>
+    {% if req.status == 'Pending' %}<span class="badge badge-active" style="font-size:0.9rem;">Pending</span>
+    {% elif req.status == 'In Progress' %}<span class="badge" style="background:#F9A825;color:#fff;font-size:0.9rem;">In Progress</span>
+    {% elif req.status == 'Completed' %}<span class="badge" style="background:var(--primary-dark);color:#fff;font-size:0.9rem;">Completed</span>
+    {% else %}<span class="badge badge-closed" style="font-size:0.9rem;">{{ req.status }}</span>{% endif %}
+  </div>
+</div>
+
+{% if req.description %}
+<div class="card" style="background:var(--accent); border-color:var(--accent-2); margin-top:14px;">
+  <b>Patient's description:</b> {{ req.description }}
+</div>
+{% endif %}
+
+{% if req.resolution_note %}
+<div class="card" style="margin-top:10px; border-left:4px solid var(--primary);">
+  <b>Resolution note:</b> {{ req.resolution_note }}
+  {% if req.resolved_at %}<br><span class="muted" style="font-size:0.85rem;">Resolved on {{ req.resolved_at }}</span>{% endif %}
+</div>
+{% endif %}
+
+{% if req.status not in ('Completed', 'Rejected') %}
+<div class="grid grid-2" style="margin-top:14px; align-items:start;">
+
+  {# ── Left: type-specific action ─────────────────────────────────────── #}
+  <div class="card">
+    {% if req.request_type == 'Access' %}
+      <h3>Generate Data Export</h3>
+      <p class="muted">Produces a PDF of all personal and clinical data held about this patient.</p>
+      <a href="{{ url_for('data_rights.access_pdf', request_id=req.id) }}" target="_blank"
+         class="btn btn-primary">📄 Generate & Download Data Export PDF</a>
+      <p class="help-text" style="margin-top:8px;">Opening the PDF also marks this request as In Progress. Once you have shared it with the patient, mark it as Completed below.</p>
+
+    {% elif req.request_type == 'Correction' %}
+      <h3>Correct Patient Data</h3>
+      <p class="muted">Open the patient's record and edit the incorrect fields directly, then return here to mark this request as Completed.</p>
+      <a href="{{ url_for('patients.edit_patient', patient_id=patient.id) }}" class="btn btn-primary">✏ Edit Patient Record</a>
+
+    {% elif req.request_type == 'Erasure' %}
+      <h3>Erase Personal Data</h3>
+      <div class="flash flash-warning">
+        <b>⚠ This is irreversible.</b> It will anonymise all personally identifying fields (name, contact, address, medical history, allergies, guardian details). Clinical and financial treatment records will be retained as required by the 7-year statutory obligation under the Clinical Establishments Act.
+      </div>
+      <form method="post"
+            data-confirm="This will permanently anonymise {{ patient.name }}'s personal data. Clinical records will be kept. Are you absolutely sure?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="erasure_execute">
+        <div class="form-group" style="margin-top:10px;">
+          <label>Type the patient's full name to confirm: <b>{{ patient.name }}</b></label>
+          <input type="text" name="erasure_confirm" required placeholder="Type name exactly">
+        </div>
+        <button type="submit" class="btn btn-danger">Anonymise Patient Data</button>
+      </form>
+
+    {% elif req.request_type == 'Withdraw Consent' %}
+      <h3>Withdraw Communications Consent</h3>
+      <p class="muted">Current status:
+        {% if patient.comms_consent %}
+          <span class="badge badge-active">Consent given</span>
+        {% else %}
+          <span class="badge badge-closed">Already withdrawn</span>
+        {% endif %}
+      </p>
+      {% if patient.comms_consent %}
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="withdraw_consent">
+        <button type="submit" class="btn btn-primary">Withdraw Consent Now</button>
+      </form>
+      {% else %}
+        <p class="muted">Communications consent is already off for this patient — mark as Completed below.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {# ── Right: status update ────────────────────────────────────────────── #}
+  <div class="card">
+    <h3>Update Status</h3>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label>Resolution Note</label>
+        <textarea name="resolution_note" rows="3"
+                  placeholder="What was done, when the patient was notified, etc."></textarea>
+      </div>
+      <div class="btn-row">
+        {% if req.status == 'Pending' %}
+          <button name="action" value="in_progress" class="btn btn-secondary">Mark In Progress</button>
+        {% endif %}
+        <button name="action" value="complete" class="btn btn-primary">✓ Mark Completed</button>
+        <button name="action" value="reject" class="btn btn-danger">✗ Reject</button>
+      </div>
+      <div class="help-text" style="margin-top:8px;">A resolution note is required when rejecting.</div>
+    </form>
+  </div>
+
+</div>
+{% else %}
+  <div class="card" style="margin-top:14px;">
+    <p style="margin:0; color:var(--primary-dark);">
+      ✓ This request has been <b>{{ req.status }}</b>
+      {% if req.resolved_at %}on {{ req.resolved_at }}{% endif %}.
+    </p>
+    {% if req.request_type == 'Access' %}
+      <a href="{{ url_for('data_rights.access_pdf', request_id=req.id) }}"
+         target="_blank" class="btn btn-secondary btn-sm" style="margin-top:8px;">📄 Re-download Data Export</a>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit Appointment" if appt and appt.id else "New Appointment" }} — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('appointments.calendar_view') }}">&larr; Back to calendar</a></p>
+<h2>{{ "Edit Appointment" if appt and appt.id else "New Appointment" }}</h2>
+
+<div class="card" style="max-width:640px;">
+  <form method="post" id="appt-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group" style="position:relative;">
+      <label>Patient <span class="required-mark">*</span></label>
+      <input type="text" id="patient_search" autocomplete="off" placeholder="Search by name or mobile number…"
+             value="{{ prefill_patient.name if prefill_patient else '' }}" required>
+      <input type="hidden" name="patient_id" id="patient_id" value="{{ prefill_patient.id if prefill_patient else '' }}">
+      <div id="patient_results" style="display:none; position:absolute; z-index:10; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:var(--shadow); width:100%; max-height:220px; overflow-y:auto;"></div>
+      <div class="help-text">Can't find them? <a href="{{ url_for('patients.new_patient') }}" target="_blank">Add a new patient</a> in another tab, then search again here.</div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Date <span class="required-mark">*</span></label>
+        <input type="date" name="appt_date" value="{{ appt.appt_date if appt else prefill_date }}" required>
+      </div>
+      <div class="form-group">
+        <label>Doctor</label>
+        <select name="doctor_id">
+          <option value="">— Select —</option>
+          {% for d in doctors %}
+            <option value="{{ d.id }}" {{ "selected" if appt and appt.doctor_id == d.id }}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Start Time <span class="required-mark">*</span></label>
+        <input type="time" name="start_time" value="{{ appt.start_time if appt else '' }}" required>
+      </div>
+      <div class="form-group">
+        <label>End Time <span class="muted">(optional)</span></label>
+        <input type="time" name="end_time" value="{{ appt.end_time if appt and appt.end_time else '' }}">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Reason / Title</label>
+      <input type="text" name="title" value="{{ appt.title if appt else '' }}" placeholder="e.g. Follow-up RCT, Consultation">
+    </div>
+
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" rows="2">{{ appt.notes if appt else '' }}</textarea>
+    </div>
+
+    {% if appt and appt.id %}
+    <div class="form-group">
+      <label>Status</label>
+      <select name="status">
+        {% for s in statuses %}
+          <option value="{{ s }}" {{ "selected" if appt.status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% else %}
+      <input type="hidden" name="status" value="Scheduled">
+    {% endif %}
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">{{ "Save Changes" if appt and appt.id else "Schedule Appointment" }}</button>
+      <a href="{{ url_for('appointments.calendar_view') }}" class="btn btn-secondary">Cancel</a>
+      {% if appt and appt.id %}
+        <form method="post" action="{{ url_for('appointments.delete_appointment', appt_id=appt.id) }}" data-confirm="Delete this appointment?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+  const searchInput = document.getElementById("patient_search");
+  const hiddenId = document.getElementById("patient_id");
+  const resultsBox = document.getElementById("patient_results");
+  let debounceTimer = null;
+
+  function hideResults() { resultsBox.style.display = "none"; resultsBox.innerHTML = ""; }
+
+  searchInput.addEventListener("input", function () {
+    hiddenId.value = "";  // typing invalidates any previously picked patient
+    const q = searchInput.value.trim();
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (q.length < 2) { hideResults(); return; }
+    debounceTimer = setTimeout(function () {
+      fetch("{{ url_for('appointments.search_patients') }}?q=" + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.length) { hideResults(); return; }
+          resultsBox.innerHTML = "";
+          data.forEach(function (p) {
+            const row = document.createElement("div");
+            row.style.padding = "8px 12px";
+            row.style.cursor = "pointer";
+            row.style.borderBottom = "1px solid var(--border)";
+            row.textContent = p.name + "  (" + p.mobile + ")";
+            row.addEventListener("mouseenter", function () { row.style.background = "var(--accent)"; });
+            row.addEventListener("mouseleave", function () { row.style.background = "#fff"; });
+            row.addEventListener("click", function () {
+              searchInput.value = p.name;
+              hiddenId.value = p.id;
+              hideResults();
+            });
+            resultsBox.appendChild(row);
+          });
+          resultsBox.style.display = "block";
+        });
+    }, 250);
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.target !== searchInput) hideResults();
+  });
+
+  document.getElementById("appt-form").addEventListener("submit", function (e) {
+    if (!hiddenId.value) {
+      e.preventDefault();
+      alert("Please pick a patient from the search results before saving.");
+    }
+  });
+})();
+</script>
+{% endblock %}

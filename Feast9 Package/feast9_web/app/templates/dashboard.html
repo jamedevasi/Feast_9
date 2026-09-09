@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+{# ── Stat tiles ────────────────────────────────────────────────────────── #}
+{% set total_followups = (overdue|length) + (upcoming|length) %}
+<div class="grid grid-4" style="margin-bottom:22px;">
+  <div class="stat-tile {{ 'warn' if overdue else 'amber' if upcoming }}">
+    <div class="stat-label">Follow-ups Needing Attention</div>
+    <div class="stat-value">{{ total_followups }}</div>
+    <div style="font-size:0.74rem; color:var(--muted); margin-top:3px;">
+      {% if overdue %}🔴 {{ overdue|length }} overdue{% endif %}
+      {% if overdue and upcoming %} &nbsp;·&nbsp; {% endif %}
+      {% if upcoming %}🟡 {{ upcoming|length }} upcoming{% endif %}
+      {% if not total_followups %}All clear 🎉{% endif %}
+    </div>
+  </div>
+  <div class="stat-tile warn">
+    <div class="stat-label">Total Outstanding</div>
+    <div class="stat-value">₹{{ "{:,.0f}".format(total_outstanding) }}</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Active Cases</div>
+    <div class="stat-value">{{ active_cases }}</div>
+  </div>
+  <div class="stat-tile">
+    <div class="stat-label">Today's Appointments</div>
+    <div class="stat-value">{{ todays_appointments|length }}</div>
+  </div>
+</div>
+
+{# ── Main widgets: merged follow-ups + today's appointments ───────────── #}
+<div class="grid grid-2" style="align-items:start; margin-bottom:16px;">
+
+  {# Merged follow-ups table #}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">Follow-ups</h3>
+      <div style="font-size:0.8rem; color:var(--muted); display:flex; gap:12px;">
+        <span>🔴 Overdue</span><span>🟡 Due in 3 days</span>
+      </div>
+    </div>
+    {% set all_followups = overdue + upcoming %}
+    {% if not all_followups %}
+      <p class="empty-state">No follow-ups requiring attention. 🎉</p>
+    {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Status</th><th>Patient</th><th>Case</th><th>Date</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for item in overdue %}
+          <tr style="background:#FFF0F0;">
+            <td><span title="Overdue">🔴</span></td>
+            <td><a href="{{ url_for('patients.patient_detail', patient_id=item.patient_id) }}"><b>{{ item.patient_name }}</b></a><br><span class="muted" style="font-size:0.78rem;">{{ item.mobile }}</span></td>
+            <td style="font-size:0.88rem;">{{ item.title }}<br><span class="muted" style="font-size:0.78rem;">{{ item.next_action_note or '' }}</span></td>
+            <td><span class="badge badge-overdue">{{ item.follow_up_date }}</span></td>
+            <td><a href="{{ url_for('cases.case_detail', case_id=item.case_id) }}" class="btn btn-secondary btn-sm">Open</a></td>
+          </tr>
+        {% endfor %}
+        {% for item in upcoming %}
+          <tr style="background:#FFFDE7;">
+            <td><span title="Due soon">🟡</span></td>
+            <td><a href="{{ url_for('patients.patient_detail', patient_id=item.patient_id) }}"><b>{{ item.patient_name }}</b></a><br><span class="muted" style="font-size:0.78rem;">{{ item.mobile }}</span></td>
+            <td style="font-size:0.88rem;">{{ item.title }}<br><span class="muted" style="font-size:0.78rem;">{{ item.next_action_note or '' }}</span></td>
+            <td><span class="badge badge-active">{{ item.follow_up_date }}</span></td>
+            <td><a href="{{ url_for('cases.case_detail', case_id=item.case_id) }}" class="btn btn-secondary btn-sm">Open</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+
+  {# Today's appointments #}
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">Today's Appointments</h3>
+      <a href="{{ url_for('appointments.calendar_view') }}" class="btn btn-secondary btn-sm">Calendar</a>
+    </div>
+    {% if not todays_appointments %}
+      <p class="empty-state">Nothing scheduled for today.</p>
+    {% else %}
+      <table>
+        <thead><tr><th>Time</th><th>Patient</th><th>Doctor</th><th></th></tr></thead>
+        <tbody>
+        {% for a in todays_appointments %}
+          <tr>
+            <td><b>{{ a.start_time }}</b></td>
+            <td>{{ a.patient_name }}</td>
+            <td>{% if a.doctor_name %}<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:{{ a.doctor_color }};margin-right:5px;"></span>{{ a.doctor_name }}{% else %}—{% endif %}</td>
+            <td><a href="{{ url_for('appointments.edit_appointment', appt_id=a.id) }}" class="btn btn-secondary btn-sm">Open</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Recently updated cases ────────────────────────────────────────────── #}
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h3 style="margin:0;">Recently Updated Cases</h3>
+    <a href="{{ url_for('patients.list_patients') }}" class="btn btn-secondary btn-sm">All Patients</a>
+  </div>
+  <hr class="sep">
+  {% if not recent_cases %}
+    <p class="empty-state">No cases yet. Add your first patient to get started.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Patient</th><th>Case</th><th>Doctor</th><th>Status</th><th class="text-right">Balance</th><th></th></tr></thead>
+      <tbody>
+      {% for c in recent_cases %}
+        <tr class="{{ 'row-active' if c.status == 'Active' }}">
+          <td>{{ c.patient_name }}</td>
+          <td>{{ c.title }}</td>
+          <td>{{ c.doctor_name }}</td>
+          <td>
+            {% if c.status == 'Active' %}<span class="badge badge-active">Active</span>
+            {% else %}<span class="badge badge-closed">Closed</span>{% endif %}
+          </td>
+          <td class="text-right">
+            {% if c.status == 'Active' %}
+              <span class="{{ 'balance-pos' if c.balance > 0 else 'balance-zero' }}">₹{{ "{:,.0f}".format(c.balance) }}</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td><a href="{{ url_for('cases.case_detail', case_id=c.id) }}" class="btn btn-secondary btn-sm">Open</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card-row" style="margin-top:14px;">
+  <div class="stat-tile" style="flex:1;">
+    <div class="stat-label">Total Patients</div>
+    <div class="stat-value">{{ total_patients }}</div>
+  </div>
+  <div class="stat-tile" style="flex:1;">
+    <div class="stat-label">Closed Cases</div>
+    <div class="stat-value">{{ closed_cases }}</div>
+  </div>
+</div>
+
+{% endblock %}

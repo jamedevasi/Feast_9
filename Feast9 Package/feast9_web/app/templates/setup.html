@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Set up admin account — {{ clinic_name }}{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <img src="{{ url_for('branding.logo_image') }}" class="brand-logo-big" alt="logo">
+  <h2 style="text-align:center;">Welcome to Feast9</h2>
+  <p class="muted" style="text-align:center;">Create the admin account used to log in. This only happens once.</p>
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Username <span class="required-mark">*</span></label>
+      <input type="text" name="username" value="{{ username }}" required autofocus>
+    </div>
+    <div class="form-group">
+      <label>Password <span class="required-mark">*</span></label>
+      <input type="password" name="password" required minlength="6">
+      <div class="help-text">At least 6 characters.</div>
+    </div>
+    <div class="form-group">
+      <label>Confirm Password <span class="required-mark">*</span></label>
+      <input type="password" name="confirm" required minlength="6">
+    </div>
+    <hr class="sep">
+    <p class="muted" style="margin-top:0;">This is used to recover your account if you forget your password — there's no email server involved, so pick something you'll actually remember the answer to.</p>
+    <div class="form-group">
+      <label>Security Question <span class="required-mark">*</span></label>
+      <select name="security_question" id="security_question_select" required>
+        <option value="">— Select —</option>
+        {% for q in security_questions %}
+          <option value="{{ q }}">{{ q }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group" id="custom_question_group" style="display:none;">
+      <label>Your Question <span class="required-mark">*</span></label>
+      <input type="text" name="security_question_custom" placeholder="Write your own question">
+    </div>
+    <div class="form-group">
+      <label>Answer <span class="required-mark">*</span></label>
+      <input type="text" name="security_answer" required>
+      <div class="help-text">Not case-sensitive — "Kochi" and "kochi" are treated the same.</div>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Create Account</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.getElementById("security_question_select").addEventListener("change", function () {
+    document.getElementById("custom_question_group").style.display =
+      this.value.startsWith("Other") ? "block" : "none";
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Appointments — {{ day }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('appointments.calendar_view', year=day_obj.year, month=day_obj.month) }}">&larr; Back to calendar</a></p>
+
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  <h2 style="margin:0;">{{ day_obj.strftime('%A, %d %B %Y') }}</h2>
+  <a href="{{ url_for('appointments.new_appointment', date=day) }}" class="btn btn-primary">+ New Appointment</a>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  {% if not appointments %}
+    <p class="empty-state">No appointments scheduled for this day.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Patient</th><th>Doctor</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for a in appointments %}
+        <tr>
+          <td>{{ a.start_time }}{% if a.end_time %} – {{ a.end_time }}{% endif %}</td>
+          <td><a href="{{ url_for('patients.patient_detail', patient_id=a.patient_id) }}">{{ a.patient_name }}</a><br><span class="muted" style="font-size:0.8rem;">{{ a.patient_mobile }}</span></td>
+          <td>
+            {% if a.doctor_name %}<span class="legend-dot" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{{ a.doctor_color }};margin-right:6px;"></span>{{ a.doctor_name }}{% else %}<span class="muted">—</span>{% endif %}
+          </td>
+          <td>{{ a.title or "—" }}{% if a.notes %}<br><span class="muted" style="font-size:0.8rem;">{{ a.notes }}</span>{% endif %}</td>
+          <td>
+            {% if a.status == 'Scheduled' %}<span class="badge badge-active">Scheduled</span>
+            {% elif a.status == 'Completed' %}<span class="badge" style="background:var(--primary-dark); color:#fff;">Completed</span>
+            {% elif a.status == 'Cancelled' %}<span class="badge badge-overdue">Cancelled</span>
+            {% else %}<span class="badge badge-closed">{{ a.status }}</span>{% endif %}
+          </td>
+          <td class="btn-row" style="margin-top:0;">
+            <a href="{{ url_for('appointments.edit_appointment', appt_id=a.id) }}" class="btn btn-secondary btn-sm">Edit</a>
+            <form method="post" action="{{ url_for('appointments.delete_appointment', appt_id=a.id) }}" data-confirm="Delete this appointment?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="link-btn">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

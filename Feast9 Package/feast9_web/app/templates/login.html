@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Log in — {{ clinic_name }}{% endblock %}
+{% block extra_head %}
+<style>
+  .apollonia-inset {
+    display: block;
+    margin: 0 auto 8px;
+    width: 92px;
+    height: auto;
+    border-radius: 10px;
+    border: 2px solid var(--accent-2);
+    box-shadow: 0 2px 6px rgba(27,43,30,0.18);
+  }
+  .apollonia-caption {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.82rem;
+    color: var(--primary-dark);
+    margin: 0 0 10px;
+  }
+  .verse-block {
+    text-align: center;
+    font-style: italic;
+    color: var(--primary-dark);
+    font-size: 0.92rem;
+    line-height: 1.5;
+    margin: 0 0 18px;
+    padding: 12px 10px;
+    border-top: 1px solid var(--accent-2);
+    border-bottom: 1px solid var(--accent-2);
+  }
+  .verse-block .verse-ref { display: block; margin-top: 4px; font-style: normal; font-size: 0.78rem; color: var(--muted); }
+</style>
+{% endblock %}
+{% block content %}
+<div class="card auth-card">
+  <img src="{{ url_for('branding.logo_image') }}" class="brand-logo-big" alt="logo">
+  <h2 style="text-align:center;">{{ clinic_name }}</h2>
+  <p class="muted" style="text-align:center; margin-bottom:14px;">Patient &amp; case management — please log in.</p>
+
+  <img src="{{ url_for('static', filename='img/saint_apollonia.png') }}" alt="Saint Apollonia" class="apollonia-inset">
+  <p class="apollonia-caption">St Apollonia &mdash; pray for us.</p>
+
+  <div class="verse-block">
+    "I will restore you to health and heal your wounds."
+    <span class="verse-ref">— Jeremiah 30:17</span>
+  </div>
+
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" name="username" required autofocus>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" name="password" required>
+    </div>
+    <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Log In</button>
+  </form>
+  <p style="text-align:center; margin-top:14px;"><a href="{{ url_for('auth.forgot_password') }}">Forgot password?</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Analytics — {{ clinic_name }}{% endblock %}
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
+  .kpi-tile { background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px; text-align:center; }
+  .kpi-val  { font-size:1.9rem; font-weight:700; color:var(--primary-dark); line-height:1.1; }
+  .kpi-lbl  { font-size:0.78rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .chart-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(440px,1fr)); gap:16px; }
+  .chart-card { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .chart-card h4 { margin:0 0 12px; font-size:0.95rem; color:var(--primary-dark); }
+  .chart-card p.sub { margin:-8px 0 12px; font-size:0.8rem; color:var(--muted); }
+  canvas { max-height:260px; }
+  .year-sel { display:flex; align-items:center; gap:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  <div>
+    <h2 style="margin-bottom:2px;">Analytics</h2>
+    <p class="muted" style="margin:0;">Business insights to guide future planning — trends, patterns and opportunities.</p>
+  </div>
+  <form method="get" class="year-sel">
+    <label style="margin:0;">Year</label>
+    <select name="year" onchange="this.form.submit()" style="width:90px;">
+      {% for y in data.available_years %}
+        <option value="{{ y }}" {{ 'selected' if y == year }}>{{ y }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{# ── KPI tiles ─────────────────────────────────────────────────────────── #}
+<div class="kpi-grid" style="margin-top:14px;">
+  <div class="kpi-tile"><div class="kpi-val">{{ data.total_patients }}</div><div class="kpi-lbl">Total Patients</div></div>
+  <div class="kpi-tile"><div class="kpi-val">{{ data.collection_rate }}%</div><div class="kpi-lbl">Collection Rate</div></div>
+  <div class="kpi-tile"><div class="kpi-val">{{ data.closure_rate }}%</div><div class="kpi-lbl">Case Closure Rate</div></div>
+  <div class="kpi-tile"><div class="kpi-val">₹{{ "{:,.0f}".format(data.avg_case_value) }}</div><div class="kpi-lbl">Avg Case Value</div></div>
+  <div class="kpi-tile"><div class="kpi-val">{{ data.avg_days_to_close }}</div><div class="kpi-lbl">Avg Days to Close</div></div>
+  <div class="kpi-tile"><div class="kpi-val">{{ data.status_dist.get('Active',0) }}</div><div class="kpi-lbl">Active Cases</div></div>
+</div>
+
+<div class="chart-grid">
+
+  {# 1. Monthly trend — patients + revenue #}
+  <div class="chart-card">
+    <h4>Monthly Trend — {{ year }}</h4>
+    <p class="sub">New patients registered and revenue collected each month.</p>
+    <canvas id="monthlyChart"></canvas>
+  </div>
+
+  {# 2. Day-of-week footfall #}
+  <div class="chart-card">
+    <h4>Busiest Days of the Week</h4>
+    <p class="sub">Appointment volume and revenue by day — useful for staffing and scheduling.</p>
+    <canvas id="dowChart"></canvas>
+  </div>
+
+  {# 3. Patient demographics #}
+  <div class="chart-card">
+    <h4>Patient Demographics</h4>
+    <p class="sub">Men / Women / Children (under 18). Helps plan specialised services.</p>
+    <canvas id="demoChart"></canvas>
+  </div>
+
+  {# 4. Procedure popularity (year) #}
+  <div class="chart-card">
+    <h4>Top Procedures in {{ year }}</h4>
+    <p class="sub">Which treatments are in highest demand — guides equipment and training investment.</p>
+    <canvas id="procYearChart"></canvas>
+  </div>
+
+  {# 5. Case type monthly trend (top 5 procedures) #}
+  <div class="chart-card" style="grid-column: span 2;">
+    <h4>Monthly Case Type Trend — {{ year }}</h4>
+    <p class="sub">How the top-5 procedures trend across the year — seasonal demand patterns.</p>
+    <canvas id="caseTypeChart" style="max-height:240px;"></canvas>
+  </div>
+
+  {# 6. Revenue by procedure type #}
+  <div class="chart-card">
+    <h4>Revenue by Procedure Type</h4>
+    <p class="sub">Which treatments generate the most revenue (all time). Guides pricing and promotion.</p>
+    <canvas id="procRevChart"></canvas>
+  </div>
+
+  {# 7. Doctor performance #}
+  <div class="chart-card">
+    <h4>Doctor Performance</h4>
+    <p class="sub">Cases handled and revenue billed per doctor (all time).</p>
+    <canvas id="doctorChart"></canvas>
+  </div>
+
+  {# 8. Payment method mix #}
+  <div class="chart-card">
+    <h4>Payment Method Mix</h4>
+    <p class="sub">How patients prefer to pay — useful for UPI / card terminal decisions.</p>
+    <canvas id="payMethodChart"></canvas>
+  </div>
+
+</div>
+
+{# Top patients table #}
+{% if data.top_patients %}
+<div class="card" style="margin-top:16px;">
+  <h4 style="margin:0 0 10px;">Top 5 Patients by Revenue</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Mobile</th><th>Sex</th><th class="text-right">Total Paid (₹)</th></tr></thead>
+      <tbody>
+      {% for p in data.top_patients %}
+        <tr><td>{{ loop.index }}</td><td>{{ p.name }}</td><td>{{ p.mobile }}</td><td>{{ p.sex or '—' }}</td><td class="text-right"><b>{{ "{:,.2f}".format(p.paid) }}</b></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  var d = {{ data_json | safe }};
+  var GREEN  = '#2E7D32', LBLUE = '#1E88E5', AMBER = '#F9A825',
+      PINK   = '#D81B60', TEAL  = '#00897B', PURPLE= '#8E24AA',
+      ORANGE = '#EF6C00', INDIGO= '#3949AB';
+  var PALETTE = [GREEN,LBLUE,AMBER,PINK,TEAL,PURPLE,ORANGE,INDIGO,
+                 '#00ACC1','#6D4C41','#455A64','#5E35B1'];
+
+  function mkChart(id, cfg) {
+    var el = document.getElementById(id);
+    if (el) new Chart(el, cfg);
+  }
+
+  // 1. Monthly trend
+  var months = d.monthly_trend.map(function(r){return r.month;});
+  mkChart('monthlyChart', {type:'bar', data:{
+    labels: months,
+    datasets:[
+      {label:'New Patients', data:d.monthly_trend.map(function(r){return r.patients;}),
+       backgroundColor: LBLUE+'99', yAxisID:'y2'},
+      {label:'Revenue (₹)', data:d.monthly_trend.map(function(r){return r.revenue;}),
+       backgroundColor: GREEN+'99', yAxisID:'y1'},
+    ]
+  }, options:{responsive:true, plugins:{legend:{position:'bottom'}},
+    scales:{y1:{position:'left',title:{display:true,text:'Revenue (₹)'}},
+            y2:{position:'right',title:{display:true,text:'Patients'},grid:{drawOnChartArea:false}}}}});
+
+  // 2. Day of week
+  mkChart('dowChart', {type:'bar', data:{
+    labels: d.dow_trend.map(function(r){return r.day;}),
+    datasets:[
+      {label:'Appointments', data:d.dow_trend.map(function(r){return r.appts;}),
+       backgroundColor: AMBER+'CC'},
+    ]
+  }, options:{responsive:true, plugins:{legend:{position:'bottom'}}}});
+
+  // 3. Demographics
+  var demo = d.demographics;
+  mkChart('demoChart', {type:'doughnut', data:{
+    labels: Object.keys(demo),
+    datasets:[{data: Object.values(demo),
+               backgroundColor:[LBLUE,PINK,TEAL,AMBER]}]
+  }, options:{responsive:true, plugins:{legend:{position:'bottom'}}}});
+
+  // 4. Top procedures this year
+  mkChart('procYearChart', {type:'bar', data:{
+    labels: d.top_procedures_year.map(function(r){return r.name;}),
+    datasets:[{label:'Cases', data:d.top_procedures_year.map(function(r){return r.count;}),
+               backgroundColor: d.top_procedures_year.map(function(_,i){return PALETTE[i%PALETTE.length]+'CC';})}]
+  }, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}}}});
+
+  // 5. Case type monthly trend
+  var ctMonths = d.monthly_trend.map(function(r){return r.month;});
+  var ctDatasets = Object.keys(d.case_type_monthly).map(function(proc,i){
+    return {
+      label: proc,
+      data: d.case_type_monthly[proc],
+      borderColor: PALETTE[i%PALETTE.length],
+      backgroundColor: PALETTE[i%PALETTE.length]+'33',
+      tension: 0.3, fill: false
+    };
+  });
+  mkChart('caseTypeChart', {type:'line', data:{labels:ctMonths, datasets:ctDatasets},
+    options:{responsive:true, plugins:{legend:{position:'bottom'}},
+             scales:{y:{beginAtZero:true, title:{display:true,text:'Cases'}}}}});
+
+  // 6. Revenue by procedure
+  mkChart('procRevChart', {type:'bar', data:{
+    labels: d.top_proc_revenue.map(function(r){return r.name;}),
+    datasets:[{label:'Revenue (₹)', data:d.top_proc_revenue.map(function(r){return r.revenue;}),
+               backgroundColor: d.top_proc_revenue.map(function(_,i){return PALETTE[i%PALETTE.length]+'CC';})}]
+  }, options:{indexAxis:'y', responsive:true, plugins:{legend:{display:false}},
+     scales:{x:{title:{display:true,text:'Revenue (₹)'}}}}});
+
+  // 7. Doctor performance
+  mkChart('doctorChart', {type:'bar', data:{
+    labels: d.doctor_perf.map(function(r){return r.name;}),
+    datasets:[
+      {label:'Cases', data:d.doctor_perf.map(function(r){return r.case_count;}), backgroundColor:LBLUE+'99'},
+      {label:'Billed (₹)', data:d.doctor_perf.map(function(r){return r.total_billed;}), backgroundColor:GREEN+'99', yAxisID:'y2'}
+    ]
+  }, options:{responsive:true, plugins:{legend:{position:'bottom'}},
+     scales:{y:{position:'left'},y2:{position:'right',grid:{drawOnChartArea:false}}}}});
+
+  // 8. Payment method mix
+  mkChart('payMethodChart', {type:'pie', data:{
+    labels: d.pay_methods.map(function(r){return r.method||'Unknown';}),
+    datasets:[{data: d.pay_methods.map(function(r){return r.s;}),
+               backgroundColor: PALETTE.map(function(c){return c+'CC';})}]
+  }, options:{responsive:true, plugins:{legend:{position:'bottom'}}}});
+
+})();
+</script>
+{% endblock %}

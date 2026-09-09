@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit Patient" if patient and patient.id else "Add Patient" }} — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>{{ "Edit Patient" if patient and patient.id else "Add Patient" }}</h2>
+
+<div class="card" style="max-width:760px;">
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Full Name <span class="required-mark">*</span></label>
+        <input type="text" name="name" value="{{ patient.name if patient else '' }}" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>Mobile Number <span class="required-mark">*</span></label>
+        <input type="tel" name="mobile" value="{{ patient.mobile if patient else '' }}" required>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Age</label>
+        <input type="number" name="age" min="0" max="130" value="{{ patient.age if patient and patient.age else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Sex</label>
+        <select name="sex" id="sex_select">
+          <option value="">— Select —</option>
+          {% for s in sex_options %}
+            <option value="{{ s }}" {{ "selected" if patient and patient.sex == s }}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Email <span class="muted">(optional)</span></label>
+      <input type="email" name="email" value="{{ patient.email if patient else '' }}">
+    </div>
+
+    <div class="form-group">
+      <label>Address</label>
+      <textarea name="address" rows="2">{{ patient.address if patient else '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Last Visited Date</label>
+      <input type="date" name="last_visited_date" value="{{ patient.last_visited_date if patient else '' }}">
+    </div>
+
+    <hr class="sep">
+    <h3 style="margin-bottom:2px;">Medical History</h3>
+    <p class="muted" style="margin-top:0; font-size:0.88rem;">Helps flag bleeding risk, drug interactions, and anesthesia precautions before treatment.</p>
+
+    <div class="form-group">
+      <label>Known Medical Conditions</label>
+      <div class="checkbox-grid">
+        {% for c in medical_conditions_options %}
+          <label class="checkbox-row">
+            <input type="checkbox" name="medical_conditions" value="{{ c }}"
+                   {{ "checked" if patient and c in (patient.medical_conditions or []) }}>
+            {{ c }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Other Medical Conditions <span class="muted">(free text)</span></label>
+      <input type="text" name="medical_conditions_other" value="{{ patient.medical_conditions_other if patient else '' }}" placeholder="Anything not listed above…">
+    </div>
+
+    <div class="form-group" id="pregnancy_group">
+      <label>Pregnancy / Nursing Status <span class="muted">(if applicable)</span></label>
+      <div class="checkbox-grid">
+        <label class="checkbox-row">
+          <input type="checkbox" name="is_pregnant" value="1" {{ "checked" if patient and patient.is_pregnant }}>
+          Currently pregnant
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" name="is_nursing" value="1" {{ "checked" if patient and patient.is_nursing }}>
+          Currently nursing / breastfeeding
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Known Drug Allergies</label>
+      <div class="checkbox-grid">
+        {% for a in allergy_options %}
+          <label class="checkbox-row">
+            <input type="checkbox" name="allergies" value="{{ a }}"
+                   {{ "checked" if patient and a in (patient.allergies or []) }}>
+            {{ a }}
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Other Allergies <span class="muted">(free text)</span></label>
+      <input type="text" name="allergies_other" value="{{ patient.allergies_other if patient else '' }}" placeholder="Anything not listed above…">
+    </div>
+
+    <hr class="sep">
+    <h3 style="margin-bottom:2px;">Emergency Contact</h3>
+    <p class="muted" style="margin-top:0; font-size:0.88rem;">Optional, but recommended — someone to reach in case of a dental emergency.</p>
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Contact Name</label>
+        <input type="text" name="emergency_contact_name" value="{{ patient.emergency_contact_name if patient else '' }}">
+      </div>
+      <div class="form-group">
+        <label>Relation</label>
+        <input type="text" name="emergency_contact_relation" value="{{ patient.emergency_contact_relation if patient else '' }}" placeholder="e.g. Spouse, Parent">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Contact Number</label>
+      <input type="tel" name="emergency_contact_number" value="{{ patient.emergency_contact_number if patient else '' }}">
+    </div>
+
+    {# ── Guardian details (minors only) ───────────────────────────────────── #}
+    {% set is_minor = (patient and patient.age and patient.age|int < 18) %}
+    <div id="guardian_section" style="{{ '' if is_minor else 'display:none;' }}">
+      <hr class="sep">
+      <h3 style="margin:0 0 4px;">Guardian / Parent Details
+        <span class="badge badge-overdue" style="font-size:0.72rem;">Required for minors</span>
+      </h3>
+      <p class="muted" style="font-size:0.85rem; margin:2px 0 10px;">Patient is under 18 — guardian details required under Section 9, DPDP Act 2023.</p>
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label>Guardian Name <span class="required-mark" id="guardian_req">*</span></label>
+          <input type="text" name="guardian_name" id="guardian_name_input"
+                 value="{{ patient.guardian_name if patient else '' }}"
+                 placeholder="Parent or legal guardian">
+        </div>
+        <div class="form-group">
+          <label>Relationship</label>
+          <input type="text" name="guardian_relation"
+                 value="{{ patient.guardian_relation if patient else '' }}"
+                 placeholder="Father / Mother / Guardian">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Guardian Mobile</label>
+        <input type="tel" name="guardian_mobile"
+               value="{{ patient.guardian_mobile if patient else '' }}">
+      </div>
+    </div>
+
+    {# ── DPDP Data Processing Notice ──────────────────────────────────────── #}
+    <hr class="sep">
+    <h3 style="margin:0 0 4px;">Data Processing Notice
+      <span class="muted" style="font-size:0.8rem; font-weight:400;">(DPDP Act 2023 — Section 5)</span>
+    </h3>
+
+    {% if not patient or not patient.id %}
+      <div style="background:#F4FBF4; border:1px solid var(--accent-2);
+                  border-left:4px solid var(--primary); border-radius:8px;
+                  padding:12px 14px; margin-bottom:10px; font-size:0.83rem;
+                  line-height:1.65; white-space:pre-wrap;
+                  max-height:210px; overflow-y:auto;">{{ dpdp_notice }}</div>
+      <div class="form-group">
+        <label class="checkbox-row">
+          <input type="checkbox" name="dpdp_notice_accepted" value="1"
+                 {{ 'checked' if patient and patient.dpdp_notice_accepted }} required>
+          <span><b>I have read and understood the data processing notice above.</b>
+            <span class="required-mark">*</span></span>
+        </label>
+        <div class="help-text">Required before registration. The notice explains what data is collected, why, and your rights under the DPDP Act 2023.</div>
+      </div>
+    {% else %}
+      {% if patient.dpdp_notice_accepted %}
+        <p style="font-size:0.88rem; margin-bottom:6px;">
+          <span style="color:var(--primary-dark); font-weight:600;">✓ Notice acknowledged</span>
+          {% if patient.dpdp_notice_accepted_at %}on {{ patient.dpdp_notice_accepted_at[:10] }}{% endif %}
+        </p>
+      {% else %}
+        <div class="flash flash-warning" style="margin-bottom:10px; font-size:0.85rem;">
+          ⚠ Data processing notice not yet acknowledged. Show the patient the notice at next visit and re-save with the checkbox ticked.
+        </div>
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" name="dpdp_notice_accepted" value="1">
+            <span>Patient has now read and acknowledged the data processing notice.</span>
+          </label>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="form-group">
+      <label class="checkbox-row">
+        <input type="checkbox" name="comms_consent" value="1"
+               {{ 'checked' if patient and patient.comms_consent }}>
+        <span>Patient consents to receive appointment reminders and health communications via SMS / WhatsApp.</span>
+      </label>
+      <div class="help-text">Optional — defaults to off. Can be withdrawn at any time. (Section 6, DPDP Act 2023)</div>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Save Patient</button>
+      {% if patient and patient.id %}
+        <a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}" class="btn btn-secondary">Cancel</a>
+      {% else %}
+        <a href="{{ url_for('patients.list_patients') }}" class="btn btn-secondary">Cancel</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var ageInput    = document.querySelector('input[name="age"]');
+    var guardianSec = document.getElementById("guardian_section");
+    var sexSelect   = document.getElementById("sex_select");
+    var pregGroup   = document.getElementById("pregnancy_group");
+
+    function syncMinor() {
+      var age = parseInt(ageInput ? ageInput.value : 0, 10);
+      var minor = !isNaN(age) && age > 0 && age < 18;
+      if (guardianSec) guardianSec.style.display = minor ? "block" : "none";
+    }
+    function syncSex() {
+      if (pregGroup && sexSelect)
+        pregGroup.style.display = (sexSelect.value === "Female" || sexSelect.value === "") ? "block" : "none";
+    }
+    if (ageInput)  { ageInput.addEventListener("input", syncMinor); syncMinor(); }
+    if (sexSelect) { sexSelect.addEventListener("change", syncSex);  syncSex();  }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>Settings</h2>
+
+{# ── Administration links ──────────────────────────────────────────────── #}
+<div class="grid grid-2" style="align-items:start; margin-bottom:16px;">
+  <div class="card" style="padding:16px;">
+    <h3 style="margin:0 0 6px;">👨‍⚕️ Doctors</h3>
+    <p class="muted" style="margin:0 0 12px; font-size:0.88rem;">Add, edit, or deactivate doctors. Each doctor is assigned a colour on the appointments calendar.</p>
+    <a href="{{ url_for('doctors.list_doctors') }}" class="btn btn-primary btn-sm">Manage Doctors</a>
+  </div>
+  <div class="card" style="padding:16px;">
+    <h3 style="margin:0 0 6px;">🦷 Case Types</h3>
+    <p class="muted" style="margin:0 0 12px; font-size:0.88rem;">Manage the list of dental procedures shown when creating a case. Add anything specific to your practice.</p>
+    <a href="{{ url_for('procedure_types.list_procedure_types') }}" class="btn btn-primary btn-sm">Manage Case Types</a>
+  </div>
+  <div class="card" style="padding:14px;">
+    <h3 style="margin:0 0 6px;">📥 Import Data</h3>
+    <p class="muted" style="margin:0 0 10px; font-size:0.85rem;">Bulk import historic patient records from an Excel spreadsheet. Download the template, fill it in, and upload.</p>
+    <a href="{{ url_for('import_data.import_home') }}" class="btn btn-primary btn-sm">Import Patient Data</a>
+  </div>
+</div>
+
+<div class="grid grid-2" style="align-items:start;">
+  <div class="card">
+    <h3>Clinic Details</h3>
+    <p class="muted">Shown on printed prescriptions and summaries.</p>
+    <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="form" value="clinic">
+      <div class="form-group">
+        <label>Clinic Name</label>
+        <input type="text" name="clinic_name" value="{{ clinic.clinic_name }}">
+      </div>
+      <div class="form-group">
+        <label>Address</label>
+        <input type="text" name="clinic_address" value="{{ clinic.clinic_address }}">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="text" name="clinic_phone" value="{{ clinic.clinic_phone }}">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="clinic_email" value="{{ clinic.clinic_email }}">
+      </div>
+      <button type="submit" class="btn btn-primary">Save Clinic Details</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Change Password</h3>
+    <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="form" value="password">
+      <div class="form-group">
+        <label>Current Password</label>
+        <input type="password" name="old_password" required>
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" name="new_password" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label>Confirm New Password</label>
+        <input type="password" name="confirm_password" required minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary">Change Password</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Clinic Logo</h3>
+    <p class="muted">Shown in the top bar, login screen, and on every printed PDF.</p>
+    <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
+      <img src="{{ url_for('branding.logo_image') }}" alt="Current logo" style="height:64px; width:64px; border-radius:50%; background:#fff; border:1px solid var(--border); object-fit:contain;">
+      <span class="muted" style="font-size:0.85rem;">{{ "Custom logo in use" if has_custom_logo else "Using the default placeholder logo" }}</span>
+    </div>
+    <form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="form" value="logo">
+      <div class="form-group">
+        <input type="file" name="logo_file" accept="image/png,image/jpeg,image/webp" required>
+        <div class="help-text">PNG or JPG, up to 5 MB — automatically resized.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Upload Logo</button>
+    </form>
+    {% if has_custom_logo %}
+    <form method="post" style="margin-top:8px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="form" value="logo_remove">
+      <button type="submit" class="btn btn-secondary btn-sm">Remove Custom Logo</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h3>Security Question</h3>
+    <p class="muted">Used to reset your password from the login screen if you ever forget it.</p>
+    {% if user.security_question %}
+      <p style="font-size:0.9rem;"><b>Current question:</b> {{ user.security_question }}</p>
+    {% else %}
+      <p class="flash flash-warning" style="margin-bottom:14px;">No security question is set up yet — you wouldn't be able to self-recover your password if forgotten.</p>
+    {% endif %}
+    <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="form" value="security">
+      <div class="form-group">
+        <label>Current Password <span class="required-mark">*</span></label>
+        <input type="password" name="current_password_for_security" required>
+      </div>
+      <div class="form-group">
+        <label>New Security Question <span class="required-mark">*</span></label>
+        <select name="security_question" id="security_question_select_settings" required>
+          <option value="">— Select —</option>
+          {% for q in security_questions %}
+            <option value="{{ q }}">{{ q }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group" id="custom_question_group_settings" style="display:none;">
+        <label>Your Question</label>
+        <input type="text" name="security_question_custom" placeholder="Write your own question">
+      </div>
+      <div class="form-group">
+        <label>Answer <span class="required-mark">*</span></label>
+        <input type="text" name="security_answer" required>
+        <div class="help-text">Not case-sensitive.</div>
+      </div>
+      <button type="submit" class="btn btn-primary">Save Security Question</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Backups</h3>
+  <p class="muted">Your data lives in one SQLite file. A copy living on the same
+    server protects against accidental deletes, but <b>not</b> against losing the
+    whole server — download a copy periodically and save it somewhere else
+    (your laptop, cloud storage, email it to yourself, anything off-server).</p>
+  <div class="btn-row">
+    <a href="{{ url_for('settings.download_backup') }}" class="btn btn-primary">⬇ Download Backup Now</a>
+    <a href="{{ url_for('settings.download_excel_backup') }}" class="btn btn-secondary">📊 Export to Excel (Plan B)</a>
+  </div>
+  <p class="help-text" style="margin-top:6px;">
+    <b>Excel export</b> — one row per case, colour-coded by status, readable in any
+    spreadsheet without needing this app at all. Use this as your "Plan B" if the
+    system or network is unavailable. Includes patient details, case info,
+    doctor, costs, and follow-up dates.<br>
+    <b>Backup Now</b> — a full SQLite copy of everything (all data, all history).
+    This is the restore point; the Excel is the human-readable emergency sheet.
+  </p>
+
+  <hr class="sep">
+  <h4 style="margin-top:0;">Snapshots on this server</h4>
+  {% if not backups %}
+    <p class="empty-state">No snapshots yet — one will be created automatically within a day, or click the button above.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>When</th><th>Type</th><th class="text-right">Size</th><th></th></tr></thead>
+      <tbody>
+      {% for b in backups %}
+        <tr>
+          <td>{{ b.modified_at }}</td>
+          <td>{% if b.kind == 'auto' %}<span class="badge badge-closed">Automatic</span>{% else %}<span class="badge badge-active">Manual</span>{% endif %}</td>
+          <td class="text-right">{{ "%.1f"|format(b.size_bytes / 1024 / 1024) }} MB</td>
+          <td class="btn-row" style="margin-top:0;">
+            <a href="{{ url_for('settings.download_existing_backup', filename=b.filename) }}" class="btn btn-secondary btn-sm">Download</a>
+            <form method="post" action="{{ url_for('settings.view_settings') }}" data-confirm="Delete this backup file? This can't be undone.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="form" value="backup_delete">
+              <input type="hidden" name="filename" value="{{ b.filename }}">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="help-text" style="margin-top:10px;">Automatic daily snapshots are kept for the last 14 days and rotate out on their own. Manual downloads stick around until you delete them.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  var sel = document.getElementById("security_question_select_settings");
+  if (sel) {
+    sel.addEventListener("change", function () {
+      document.getElementById("custom_question_group_settings").style.display =
+        this.value.startsWith("Other") ? "block" : "none";
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}{{ case.title }} — {{ patient.name }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}">&larr; {{ patient.name }}</a></p>
+<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+  <div>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <h2 style="margin:0;">{{ case.title }}</h2>
+      {% if case.status == 'Active' %}<span class="badge badge-active">Active</span>
+      {% else %}<span class="badge badge-closed">Closed</span>{% endif %}
+      {% if consents %}<a href="#consents" class="badge" style="background:var(--accent);color:var(--primary-dark);border:1px solid var(--accent-2);text-decoration:none;">✓ Consent on file</a>
+      {% else %}<a href="#consents" class="badge badge-overdue" style="text-decoration:none;">⚠ No consent yet</a>{% endif %}
+    </div>
+    {% if case.procedures %}<span class="muted" style="font-size:0.83rem;">{{ case.procedures | join(', ') }}</span>{% endif %}
+    <p class="muted" style="margin:4px 0 0; font-size:0.85rem;">Doctor: {{ doctor_name or '—' }} &nbsp;·&nbsp; Opened {{ case.created_at[:10] }}</p>
+  </div>
+  <div class="btn-row" style="margin-top:0;">
+    <a href="{{ url_for('cases.edit_case', case_id=case.id) }}" class="btn btn-secondary">Edit Case</a>
+    <a href="{{ url_for('cases.print_case_summary', case_id=case.id) }}" target="_blank" class="btn btn-secondary">🖨 Print</a>
+    <a href="{{ url_for('cases.print_case_summary', case_id=case.id, purpose='insurance') }}" target="_blank" class="btn btn-secondary">📋 Insurance</a>
+    <form method="post" action="{{ url_for('cases.delete_case', case_id=case.id) }}" data-confirm="Delete this case and all its history?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+{% if case.next_action_note or case.follow_up_date %}
+<div class="card" style="background:var(--accent);border-color:var(--accent-2);margin-top:10px;padding:10px 14px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <div>
+      {% if case.next_action_note %}<p style="margin:0; font-weight:600;">Next: {{ case.next_action_note }}</p>{% endif %}
+      {% if case.follow_up_date %}
+        <p style="margin:{{ '4px' if case.next_action_note else '0' }} 0 0; font-size:0.88rem; color:var(--muted);">
+          Follow-up reminder: <b>{{ case.follow_up_date }}</b>
+          <span style="font-size:0.78rem;"> — this is a reminder only, not a confirmed appointment.
+          {% if not appointments %}Book an appointment to confirm a time slot.{% endif %}
+          </span>
+        </p>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('appointments.new_appointment', patient_id=patient.id) }}" class="btn btn-secondary btn-sm">📅 Book Appointment</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid grid-3" style="margin-top:10px;">
+  <div class="stat-tile"><div class="stat-label">Total Cost</div><div class="stat-value">₹{{ "{:,.2f}".format(case.total_cost) }}</div></div>
+  <div class="stat-tile"><div class="stat-label">Total Paid</div><div class="stat-value">₹{{ "{:,.2f}".format(total_paid) }}</div></div>
+  {% if balance < 0 %}
+  <div class="stat-tile"><div class="stat-label">Overpaid (Refund Due)</div><div class="stat-value">₹{{ "{:,.2f}".format(-balance) }}</div></div>
+  {% else %}
+  <div class="stat-tile {{ 'warn' if balance > 0 and case.status == 'Active' }}">
+    <div class="stat-label">{{ "Pending Balance" if case.status == 'Active' else "Balance at Closure" }}</div>
+    <div class="stat-value" style="{{ 'color:#C62828;' if balance > 0 }}">₹{{ "{:,.2f}".format(balance) }}</div>
+  </div>
+  {% endif %}
+</div>
+
+{# 1. CONSENT — legal/DPDP requirement, most important #}
+<div class="card" id="consents" style="margin-top:14px;{{ ' border-color:#C62828; border-width:2px;' if not consents and case.status == 'Active' }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+    <div>
+      <h3 style="margin:0 0 2px;">Consent Forms</h3>
+      {% if not consents and case.status == 'Active' %}
+      <p style="margin:0;font-size:0.83rem;color:#C62828;">Treatment consent must be obtained before or at the start of treatment.</p>
+      {% else %}
+      <p class="muted" style="margin:0;font-size:0.83rem;">Signed consent is kept as part of the permanent case record.</p>
+      {% endif %}
+    </div>
+    <a href="{{ url_for('cases.new_consent', case_id=case.id) }}" class="btn btn-primary btn-sm">+ New Consent</a>
+  </div>
+  {% if not consents %}
+    <div style="text-align:center;padding:10px 0;">
+      <p class="empty-state" style="margin-bottom:10px;">No consent on file yet.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <a href="{{ url_for('cases.new_consent', case_id=case.id) }}" class="btn btn-primary btn-sm">✍️ Sign on Screen</a>
+        <a href="{{ url_for('cases.blank_consent_pdf', case_id=case.id) }}" target="_blank" class="btn btn-secondary btn-sm">🖨 Print Blank Form</a>
+      </div>
+      <hr class="sep" style="margin:14px 0;">
+      <p class="muted" style="font-size:0.84rem;margin-bottom:8px;"><b>Paper consent collected?</b> Confirm here to log it. Keep the signed copy in the patient file.</p>
+      <form method="post" action="{{ url_for('cases.mark_consent_offline', case_id=case.id) }}" style="max-width:460px;margin:0 auto;text-align:left;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="grid grid-2">
+          <div class="form-group">
+            <label>Date Signed</label>
+            <input type="date" name="signed_date" id="offline_date_input">
+          </div>
+          <div class="form-group">
+            <label>Notes <span class="muted">(optional)</span></label>
+            <input type="text" name="offline_notes" placeholder="e.g. Signed paper copy in file">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" required>
+            <span>I confirm signed paper consent has been obtained and filed.</span>
+          </label>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">📋 Mark Consent Collected Offline</button>
+      </form>
+    </div>
+  {% else %}
+    {% for c in consents %}
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;">
+        <div>
+          <b>{{ c.signed_date }}</b>
+          {% if c.signature_type == 'drawn' %}<span class="badge badge-active">Signed on screen</span>
+          {% elif c.signature_type == 'uploaded' %}<span class="badge" style="background:var(--accent);color:var(--primary-dark);border:1px solid var(--accent-2);">Uploaded copy</span>
+          {% else %}<span class="badge badge-closed">Paper — offline</span>{% endif %}
+          {% if c.witness_name %}<span class="muted" style="font-size:0.82rem;"> · Witness: {{ c.witness_name }}</span>{% endif %}
+        </div>
+        <div class="btn-row" style="margin-top:0;">
+          <a href="{{ url_for('cases.print_consent', consent_id=c.id) }}" target="_blank" class="btn btn-secondary btn-sm">🖨 View/Print</a>
+          {% if c.signature_filename and c.signature_filename.endswith('.pdf') %}
+            <a href="{{ url_for('cases.consent_attachment', consent_id=c.id) }}" target="_blank" class="btn btn-secondary btn-sm">📎 Original</a>
+          {% endif %}
+          <form method="post" action="{{ url_for('cases.delete_consent', consent_id=c.id) }}" data-confirm="Delete this consent record?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="link-btn">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% if c.signature_filename and c.signature_filename.endswith('.png') %}
+        <img src="{{ url_for('cases.consent_attachment', consent_id=c.id) }}" alt="signature" style="height:46px;margin-top:8px;border-bottom:1px solid var(--border);">
+      {% endif %}
+      <p class="muted" style="font-size:0.83rem;margin:6px 0 0;white-space:pre-wrap;">{{ c.consent_text[:180] }}{% if c.consent_text|length > 180 %}…{% endif %}</p>
+      {% if c.notes %}<p style="font-size:0.83rem;margin:4px 0 0;"><b>Notes:</b> {{ c.notes }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+{# 2. VISIT NOTES — most used daily #}
+<div class="card" id="visit-notes" style="margin-top:14px;">
+  <h3 style="margin-bottom:2px;">Visit Notes</h3>
+  <p class="muted" style="margin:0 0 10px;font-size:0.83rem;">Add a note after every sitting to build the treatment timeline.</p>
+  {% if not visit_notes %}
+    <p class="empty-state">No visit notes yet.</p>
+  {% else %}
+    {% for n in visit_notes %}
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <b>{{ n.visit_date }}</b>
+        <form method="post" action="{{ url_for('cases.delete_visit_note', note_id=n.id) }}" data-confirm="Delete this visit note?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="link-btn">Delete</button>
+        </form>
+      </div>
+      <p style="white-space:pre-wrap;margin:6px 0 0;">{{ n.note }}</p>
+    </div>
+    {% endfor %}
+  {% endif %}
+  <hr class="sep">
+  <form method="post" action="{{ url_for('cases.add_visit_note', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Visit Date</label><input type="date" name="visit_date" id="visit_date_input" style="max-width:200px;"></div>
+    <div class="form-group"><label>Note <span class="required-mark">*</span></label><textarea name="note" rows="2" placeholder="e.g. Second sitting: cleaning done, next appointment in 2 weeks." required></textarea></div>
+    <button type="submit" class="btn btn-primary btn-sm">+ Add Visit Note</button>
+  </form>
+</div>
+
+{# 3. PRESCRIPTIONS #}
+<div class="card" style="margin-top:14px;">
+  <h3 style="margin-bottom:2px;">Prescriptions</h3>
+  {% if patient.has_medical_alerts %}
+  <div style="background:#FDECEA;border-left:4px solid #C62828;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:0.88rem;">
+    <b>⚠ ALLERGY ALERT:</b> {{ patient.allergies | join(', ') }}{% if patient.allergies_other %}, {{ patient.allergies_other }}{% endif %}
+  </div>
+  {% endif %}
+  {% if not prescriptions %}<p class="empty-state">No prescriptions yet.</p>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Details</th><th></th></tr></thead>
+      <tbody>
+      {% for rx in prescriptions %}
+        <tr>
+          <td>{{ rx.rx_date }}</td>
+          <td style="white-space:pre-wrap;font-size:0.88rem;">{{ rx.rx_details }}</td>
+          <td class="btn-row" style="margin-top:0;">
+            <a href="{{ url_for('cases.print_prescription', prescription_id=rx.id) }}" target="_blank" class="btn btn-secondary btn-sm">🖨 Print</a>
+            <form method="post" action="{{ url_for('cases.delete_prescription', prescription_id=rx.id) }}" data-confirm="Delete this prescription?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="link-btn">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+  <hr class="sep">
+  <form method="post" action="{{ url_for('cases.add_prescription', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group"><label>Date</label><input type="date" name="rx_date" id="rx_date_input" style="max-width:200px;"></div>
+    <div class="form-group"><label>Rx Details <span class="required-mark">*</span></label><textarea name="rx_details" rows="3" placeholder="e.g. Amoxicillin 500mg TDS x5 days" required></textarea></div>
+    <button type="submit" class="btn btn-primary btn-sm">+ Add Prescription</button>
+  </form>
+</div>
+
+{# 4. PAYMENT LOG #}
+<div class="card" style="margin-top:14px;">
+  <h3 style="margin-bottom:2px;">Payment Log</h3>
+  {% if not payments %}<p class="empty-state">No payments recorded yet.</p>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th class="text-right">Amount (₹)</th><th>Method</th><th>Note</th><th></th></tr></thead>
+      <tbody>
+      {% for p in payments %}
+        <tr>
+          <td>{{ p.payment_date }}</td>
+          <td class="text-right">{{ "{:,.2f}".format(p.amount) }}</td>
+          <td>{{ p.method or '—' }}</td>
+          <td class="muted">{{ p.note or '' }}</td>
+          <td>
+            <form method="post" action="{{ url_for('cases.delete_payment', payment_id=p.id) }}" data-confirm="Remove this payment?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="link-btn">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+  <hr class="sep">
+  <form method="post" action="{{ url_for('cases.add_payment', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid grid-3">
+      <div class="form-group"><label>Amount (₹) <span class="required-mark">*</span></label><input type="number" name="amount" step="0.01" min="0" required></div>
+      <div class="form-group"><label>Date</label><input type="date" name="payment_date" id="payment_date_input"></div>
+      <div class="form-group"><label>Method</label><select name="method">{% for m in payment_methods %}<option>{{ m }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="form-group"><label>Note <span class="muted">(optional)</span></label><input type="text" name="note" placeholder="e.g. Advance for crown"></div>
+    <button type="submit" class="btn btn-primary btn-sm">+ Add Payment</button>
+  </form>
+</div>
+
+{# 5. COST HISTORY — least frequent, admin function #}
+{# Quick follow-up update — so user doesn't need to go into Edit Case #}
+<div class="card" style="margin-top:14px;">
+  <h3 style="margin-bottom:2px;">Follow-up &amp; Next Action</h3>
+  <p class="muted" style="margin:0 0 10px;font-size:0.83rem;">
+    Set a reminder date and note for the next step. This appears on the Dashboard under
+    "Due Today" and "Overdue" — it is a <b>reminder only</b>, not a calendar appointment.
+    Use <b>📅 Book Appointment</b> to confirm an actual time slot.
+  </p>
+  <form method="post" action="{{ url_for('cases.update_followup', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid grid-2">
+      <div class="form-group">
+        <label>Follow-up Date</label>
+        <input type="date" name="follow_up_date" value="{{ case.follow_up_date or '' }}">
+      </div>
+      <div class="form-group">
+        <label>Next Action Note</label>
+        <input type="text" name="next_action_note" value="{{ case.next_action_note or '' }}"
+               placeholder="e.g. Crown fitting — call patient to confirm">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save Follow-up</button>
+    {% if case.follow_up_date %}
+    <a href="{{ url_for('appointments.new_appointment', patient_id=patient.id) }}" class="btn btn-secondary btn-sm" style="margin-left:8px;">📅 Convert to Appointment</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="card" id="cost-history" style="margin-top:14px;">
+  <h3 style="margin-bottom:2px;">Cost History &amp; Revisions</h3>
+  <p class="muted" style="margin:0 0 10px;font-size:0.83rem;">Revise the estimate if treatment scope changes. The balance recalculates automatically.</p>
+  {% if not amendments %}<p class="empty-state">No revisions — still at original estimate of ₹{{ "{:,.2f}".format(case.total_cost) }}.</p>
+  {% else %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th class="text-right">Previous (₹)</th><th class="text-right">Revised To (₹)</th><th>Reason</th><th></th></tr></thead>
+      <tbody>
+      {% for a in amendments %}
+        <tr>
+          <td>{{ a.amended_at }}</td>
+          <td class="text-right">{{ "{:,.2f}".format(a.previous_cost) }}</td>
+          <td class="text-right"><b>{{ "{:,.2f}".format(a.new_cost) }}</b></td>
+          <td>{{ a.reason or "—" }}</td>
+          <td>
+            <form method="post" action="{{ url_for('cases.delete_amendment', amendment_id=a.id) }}" data-confirm="Remove this log entry?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="link-btn">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  {% endif %}
+  <hr class="sep">
+  <form method="post" action="{{ url_for('cases.revise_cost', case_id=case.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid grid-2">
+      <div class="form-group"><label>New Total Cost (₹) <span class="required-mark">*</span></label><input type="number" name="new_total_cost" step="0.01" min="0" placeholder="{{ '%.2f'|format(case.total_cost) }}" required></div>
+      <div class="form-group"><label>Date of Revision</label><input type="date" name="amended_at" id="amended_at_input"></div>
+    </div>
+    <div class="form-group"><label>Reason <span class="required-mark">*</span></label><input type="text" name="reason" placeholder="e.g. Surgical extraction identified after 2nd sitting" required></div>
+    <button type="submit" class="btn btn-primary btn-sm">↻ Revise Estimate</button>
+  </form>
+</div>
+
+{% endblock %}
+{% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const today = new Date().toISOString().slice(0, 10);
+    ["payment_date_input","rx_date_input","amended_at_input","visit_date_input","offline_date_input"].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = today;
+    });
+  });
+</script>
+{% endblock %}

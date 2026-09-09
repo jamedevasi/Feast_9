@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ clinic_name }}{% endblock %}</title>
+<link rel="icon" type="image/png" href="{{ url_for('branding.logo_image') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+{% if current_user %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{{ url_for('dashboard.home') }}">
+      <img src="{{ url_for('branding.logo_image') }}" alt="logo" class="brand-logo">
+      <span class="brand-name">{{ clinic_name }}</span>
+    </a>
+    <nav class="main-nav">
+      <a href="{{ url_for('dashboard.home') }}" class="{{ 'active' if request.endpoint == 'dashboard.home' }}">Dashboard</a>
+      <a href="{{ url_for('appointments.calendar_view') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('appointments.') }}">Appointments</a>
+      <a href="{{ url_for('patients.list_patients') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('patients.') }}">Patients</a>
+      <a href="{{ url_for('reports.view_reports') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('reports.') }}">Reports</a>
+      <a href="{{ url_for('analytics.analytics_home') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('analytics.') }}">Analytics</a>
+      <a href="{{ url_for('data_rights.list_requests') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('data_rights.') }}">Data Rights{% set pend = pending_data_requests %}{% if pend %} <span style="background:#C62828;color:#fff;border-radius:999px;padding:1px 6px;font-size:0.7rem;margin-left:4px;">{{ pend }}</span>{% endif %}</a>
+
+      <a href="{{ url_for('settings.view_settings') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('settings.') }}">Settings</a>
+    </nav>
+    <div class="topbar-user">
+      <span>{{ current_user.username }}</span>
+      <a href="{{ url_for('auth.logout') }}" class="btn-link">Log out</a>
+    </div>
+  </div>
+</header>
+{% endif %}
+
+<main class="page {{ 'page-narrow' if not current_user else '' }}">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-stack">
+      {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+      {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <span>{{ clinic_name }} &mdash; Patient &amp; Case Management</span>
+</footer>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

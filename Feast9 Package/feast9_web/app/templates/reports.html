@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Reports — {{ clinic_name }}{% endblock %}
+{% block extra_head %}
+<style>
+  .rev-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:14px; }
+  .rev-tile { background:#fff; border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .rev-tile .label { font-size:0.73rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .rev-tile .val   { font-size:1.55rem; font-weight:700; line-height:1.15; margin-top:4px; }
+</style>
+{% endblock %}
+{% block content %}
+
+{# ── Page header + action buttons ─────────────────────────────────────── #}
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+  <div>
+    <h2 style="margin:0 0 2px;">Reports</h2>
+    <p class="muted" style="margin:0; font-size:0.88rem;">Operational view — collections, outstanding balances, and case activity.</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{{ url_for('reports.export_pdf', start=start, end=end) }}" target="_blank" class="btn btn-secondary">🖨 Print Report</a>
+    <a href="{{ url_for('reports.export_pending_excel') }}" class="btn btn-primary">📊 Download Pending (Excel)</a>
+  </div>
+</div>
+
+{# ── Date filter (compact) ─────────────────────────────────────────────── #}
+<div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; padding:12px 14px; background:var(--accent); border:1px solid var(--accent-2); border-radius:10px;">
+  <form method="get" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin:0;">
+    <div>
+      <label style="font-size:0.8rem; color:var(--muted); display:block; margin-bottom:3px;">From</label>
+      <input type="date" name="start" value="{{ start }}" style="width:150px;">
+    </div>
+    <div>
+      <label style="font-size:0.8rem; color:var(--muted); display:block; margin-bottom:3px;">To</label>
+      <input type="date" name="end" value="{{ end }}" style="width:150px;">
+    </div>
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <a href="{{ url_for('reports.view_reports') }}" class="btn btn-secondary">This Month</a>
+    <a href="{{ url_for('reports.view_reports', start=current_year ~ '-01-01', end=current_year ~ '-12-31') }}" class="btn btn-secondary">This Year</a>
+  </form>
+</div>
+
+{# ── Period summary + All-time summary in one row ──────────────────────── #}
+<div class="rev-grid">
+  <div class="rev-tile">
+    <div class="label">Revenue Collected</div>
+    <div class="val" style="color:var(--primary-dark);">₹{{ "{:,.0f}".format(stats.revenue) }}</div>
+    <div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">{{ start }} to {{ end }}</div>
+  </div>
+  <div class="rev-tile">
+    <div class="label">Cases Closed</div>
+    <div class="val">{{ stats.cases_closed }}</div>
+    <div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">Doctor-marked closures only</div>
+  </div>
+  <div class="rev-tile">
+    <div class="label">New Cases</div>
+    <div class="val">{{ stats.new_cases }}</div>
+  </div>
+  <div class="rev-tile">
+    <div class="label">New Patients</div>
+    <div class="val">{{ stats.new_patients }}</div>
+  </div>
+</div>
+
+{# ── All-time revenue summary ──────────────────────────────────────────── #}
+{% if revenue_summary %}
+<div class="card" style="margin-bottom:14px;">
+  <h3 style="margin:0 0 12px;">Revenue Overview — All Time</h3>
+  <div class="rev-grid" style="margin-bottom:10px;">
+    <div class="rev-tile">
+      <div class="label">Total Billed</div>
+      <div class="val">₹{{ "{:,.0f}".format(revenue_summary.total_billed) }}</div>
+    </div>
+    <div class="rev-tile">
+      <div class="label">Total Collected</div>
+      <div class="val" style="color:var(--primary-dark);">₹{{ "{:,.0f}".format(revenue_summary.total_collected) }}</div>
+    </div>
+    <div class="rev-tile">
+      <div class="label">Total Pending</div>
+      <div class="val" style="color:#C62828;">₹{{ "{:,.0f}".format(revenue_summary.total_pending) }}</div>
+    </div>
+    <div class="rev-tile">
+      <div class="label">Pending (Active Cases)</div>
+      <div class="val" style="color:#C62828;">₹{{ "{:,.0f}".format(revenue_summary.pending_active) }}</div>
+      <div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">{{ revenue_summary.active_case_count }} active cases</div>
+    </div>
+    <div class="rev-tile">
+      <div class="label">Overdue with Balance</div>
+      <div class="val" style="{{ 'color:#C62828;' if revenue_summary.overdue_outstanding > 0 }}">{{ revenue_summary.overdue_outstanding }}</div>
+      <div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">cases past follow-up date</div>
+    </div>
+    <div class="rev-tile">
+      <div class="label">Collection Rate</div>
+      <div class="val">{{ revenue_summary.collection_rate }}%</div>
+      <div style="height:6px; background:#FDECEA; border-radius:3px; margin-top:6px; overflow:hidden;">
+        <div style="height:100%; width:{{ revenue_summary.collection_rate|int }}%; background:var(--primary); border-radius:3px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Pending payments table ────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:14px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+    <div>
+      <h3 style="margin:0 0 2px;">Pending Payments — by Patient &amp; Case</h3>
+      <p class="muted" style="margin:0; font-size:0.83rem;">All cases with an outstanding balance, largest first. Amber = overdue follow-up.</p>
+    </div>
+    <a href="{{ url_for('reports.export_pending_excel') }}" class="btn btn-secondary btn-sm">📊 Download Excel</a>
+  </div>
+  {% if not revenue_summary.patient_case_pending %}
+    <p class="empty-state">No outstanding balances — all cases fully paid. 🎉</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th><th>Case</th><th>Doctor</th><th>Status</th>
+          <th class="text-right">Billed (₹)</th>
+          <th class="text-right">Received (₹)</th>
+          <th class="text-right">Pending (₹)</th>
+          <th>Follow-up</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in revenue_summary.patient_case_pending %}
+        {% set overdue = r.follow_up_date and r.follow_up_date < today_str %}
+        <tr style="{{ 'background:#FFF8E1;' if overdue }}">
+          <td><a href="{{ url_for('patients.patient_detail', patient_id=r.patient_id) }}"><b>{{ r.patient_name }}</b></a><br><span class="muted" style="font-size:0.78rem;">{{ r.mobile }}</span></td>
+          <td><a href="{{ url_for('cases.case_detail', case_id=r.case_id) }}">{{ r.case_title }}</a></td>
+          <td>{{ r.doctor_name or '—' }}</td>
+          <td>{% if r.status == 'Active' %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-closed">{{ r.status }}</span>{% endif %}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.total_cost) }}</td>
+          <td class="text-right" style="color:var(--primary-dark);">{{ "{:,.0f}".format(r.paid) }}</td>
+          <td class="text-right" style="color:#C62828; font-weight:700;">{{ "{:,.0f}".format(r.pending) }}</td>
+          <td>{% if r.follow_up_date %}{% if overdue %}<span class="badge badge-overdue">{{ r.follow_up_date }} Overdue</span>{% else %}{{ r.follow_up_date }}{% endif %}{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr style="font-weight:700; background:var(--accent);">
+          <td colspan="4">Total</td>
+          <td class="text-right">{{ "{:,.0f}".format(revenue_summary.patient_case_pending | sum(attribute='total_cost')) }}</td>
+          <td class="text-right" style="color:var(--primary-dark);">{{ "{:,.0f}".format(revenue_summary.patient_case_pending | sum(attribute='paid')) }}</td>
+          <td class="text-right" style="color:#C62828;">{{ "{:,.0f}".format(revenue_summary.patient_case_pending | sum(attribute='pending')) }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Period detail tables (collapsible feel via small headings) ────────── #}
+{% if payments %}
+<div class="card" style="margin-bottom:14px;">
+  <h3 style="margin-bottom:10px;">Payments Received in Period <span class="muted" style="font-weight:400; font-size:0.85rem;">({{ payments|length }})</span></h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Patient</th><th>Case</th><th class="text-right">Amount (₹)</th><th>Method</th><th>Note</th></tr></thead>
+      <tbody>
+      {% for p in payments %}
+        <tr>
+          <td>{{ p.payment_date }}</td>
+          <td>{{ p.patient_name or '—' }}</td>
+          <td>{{ p.case_title or '—' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(p.amount) }}</td>
+          <td>{{ p.method or '—' }}</td>
+          <td class="muted">{{ p.note or '' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if closed_cases %}
+<div class="card" style="margin-bottom:14px;">
+  <h3 style="margin-bottom:4px;">Cases Closed in Period <span class="muted" style="font-weight:400; font-size:0.85rem;">({{ closed_cases|length }})</span></h3>
+  <p class="muted" style="margin:0 0 10px; font-size:0.83rem;">Only cases the doctor explicitly marked as Closed during this period.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Closed On</th><th>Patient</th><th>Case</th><th class="text-right">Total Cost (₹)</th></tr></thead>
+      <tbody>
+      {% for c in closed_cases %}
+        <tr>
+          <td>{{ c.closed_at[:10] if c.closed_at else '—' }}</td>
+          <td>{{ c.patient_name or '—' }}</td>
+          <td><a href="{{ url_for('cases.case_detail', case_id=c.id) }}">{{ c.title }}</a></td>
+          <td class="text-right">{{ "{:,.0f}".format(c.total_cost) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Import Historic Data — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>Import Historic Patient Data</h2>
+<p class="muted">One-time bulk import of existing patient records from an Excel file. Use this once to load your historic data (e.g. ~8,000 records) — afterwards, add new patients normally.</p>
+
+<div class="card" style="max-width:640px;">
+  <h3>Step 1 — Download the template</h3>
+  <p>Use this template so your columns line up correctly. The importer also tolerates common header variants (e.g. "Contact Number" for Mobile, "Gender" for Sex).</p>
+  <a href="{{ url_for('import_data.download_template') }}" class="btn btn-secondary">⬇ Download Template (.xlsx)</a>
+
+  <hr class="sep">
+
+  <h3>Step 2 — Upload your filled file</h3>
+  <p class="muted">Required columns: <b>Name</b> and <b>Mobile</b>. Age, Sex, Email, Address, and Last Visited Date are optional.</p>
+  <form method="post" action="{{ url_for('import_data.preview') }}" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <input type="file" name="file" accept=".xlsx" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Upload &amp; Preview</button>
+  </form>
+  <p class="help-text">Nothing is saved until you review and confirm on the next screen.</p>
+</div>
+{% endblock %}

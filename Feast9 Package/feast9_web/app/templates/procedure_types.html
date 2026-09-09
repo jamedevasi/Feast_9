@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Case Types — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>Case / Procedure Types</h2>
+<p class="muted">This is the standard list offered in the dropdown when creating a treatment case. Deactivate types you no longer use instead of deleting them, to keep historical cases intact.</p>
+
+<div class="card" style="max-width:520px;">
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Procedure Name <span class="required-mark">*</span></label>
+      <div style="display:flex; gap:10px;">
+        <input type="text" name="name" placeholder="e.g. Bone Grafting" required>
+        <button type="submit" class="btn btn-primary">+ Add</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  {% if not procedure_types %}
+    <p class="empty-state">No procedure types yet.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for pt in procedure_types %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('procedure_types.edit_procedure_type', pt_id=pt.id) }}" style="display:flex; gap:8px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="text" name="name" value="{{ pt.name }}" style="max-width:320px;">
+              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+          </td>
+          <td>{% if pt.active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-closed">Inactive</span>{% endif %}</td>
+          <td class="btn-row" style="margin-top:0;">
+            <form method="post" action="{{ url_for('procedure_types.toggle_procedure_type', pt_id=pt.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary btn-sm">{{ "Deactivate" if pt.active else "Reactivate" }}</button>
+            </form>
+            <form method="post" action="{{ url_for('procedure_types.delete_procedure_type', pt_id=pt.id) }}" data-confirm="Delete '{{ pt.name }}' from the standard list? Existing cases already using it keep showing it.">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

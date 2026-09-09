@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Import Preview — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>Import Preview — {{ filename }}</h2>
+
+<div class="grid grid-3">
+  <div class="stat-tile"><div class="stat-label">Rows Found</div><div class="stat-value">{{ result.total_rows }}</div></div>
+  <div class="stat-tile"><div class="stat-label">Valid Rows</div><div class="stat-value">{{ result.valid_count }}</div></div>
+  <div class="stat-tile {{ 'warn' if result.error_count }}"><div class="stat-label">Rows With Errors</div><div class="stat-value">{{ result.error_count }}</div></div>
+</div>
+
+<div class="card">
+  <h3>Preview of valid records (first {{ result.preview|length }})</h3>
+  {% if not result.preview %}
+    <p class="empty-state">No valid rows found — nothing would be imported.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Age</th><th>Sex</th><th>Mobile</th><th>Email</th><th>Address</th><th>Last Visited</th></tr></thead>
+      <tbody>
+      {% for r in result.preview %}
+        <tr><td>{{ r.name }}</td><td>{{ r.age or "—" }}</td><td>{{ r.sex or "—" }}</td><td>{{ r.mobile }}</td><td>{{ r.email or "—" }}</td><td>{{ r.address or "—" }}</td><td>{{ r.last_visited_date or "—" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+{% if result.error_rows %}
+<div class="card">
+  <h3>Rows that will be skipped ({{ result.error_count }})</h3>
+  <div class="table-wrap" style="max-height:300px; overflow-y:auto;">
+    <table>
+      <thead><tr><th>Excel Row #</th><th>Reason</th><th>Name (as read)</th><th>Mobile (as read)</th></tr></thead>
+      <tbody>
+      {% for e in result.error_rows %}
+        <tr><td>{{ e.row }}</td><td>{{ e.errors|join(", ") }}</td><td>{{ e.data.name or "—" }}</td><td>{{ e.data.mobile or "—" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if result.error_count > result.error_rows|length %}
+    <p class="help-text">Showing first {{ result.error_rows|length }} of {{ result.error_count }} error rows.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <p>Importing will add <b>{{ result.valid_count }}</b> new patient record(s) to the directory. Rows with errors are skipped and not imported.</p>
+  <div class="btn-row">
+    <form method="post" action="{{ url_for('import_data.confirm') }}" data-confirm="Import {{ result.valid_count }} patient records now?">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <button type="submit" class="btn btn-primary">✓ Confirm Import ({{ result.valid_count }})</button>
+    </form>
+    <form method="post" action="{{ url_for('import_data.cancel') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <button type="submit" class="btn btn-secondary">Cancel</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

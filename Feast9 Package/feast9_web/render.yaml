@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: master-dentizt
+    runtime: docker
+    plan: starter
+    region: singapore
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: DATA_DIR
+        value: /data
+    disk:
+      name: master-dentizt-data
+      mountPath: /data
+      sizeGB: 1

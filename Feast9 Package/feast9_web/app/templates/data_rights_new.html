@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}New Data Rights Request — {{ patient.name }}{% endblock %}
+{% block content %}
+
+<p class="muted" style="margin-bottom:4px;"><a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}">&larr; {{ patient.name }}</a></p>
+<h2>New Data Rights Request</h2>
+<p class="muted">Log a request on behalf of <b>{{ patient.name }}</b>. The 90-day response window begins immediately upon saving.</p>
+
+<div class="card" style="max-width:620px;">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-group">
+      <label>Request Type <span class="required-mark">*</span></label>
+      <select name="request_type" required>
+        <option value="">— Select —</option>
+        {% for t in request_types %}
+          <option value="{{ t }}">{{ t }}</option>
+        {% endfor %}
+      </select>
+      <div class="help-text">
+        <b>Access</b> — patient wants a copy of all data held about them (PDF export generated).<br>
+        <b>Correction</b> — patient wants to correct inaccurate data.<br>
+        <b>Erasure</b> — patient wants their personal data deleted (clinical records retained by law).<br>
+        <b>Withdraw Consent</b> — patient withdrawing consent for communications.
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Description / Notes <span class="muted">(optional)</span></label>
+      <textarea name="description" rows="3" placeholder="Details of what the patient is requesting, how they contacted you, etc."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn btn-primary">Log Request</button>
+      <a href="{{ url_for('patients.patient_detail', patient_id=patient.id) }}" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

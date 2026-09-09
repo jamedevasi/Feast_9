@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Data Rights Requests — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+  <div>
+    <h2 style="margin-bottom:2px;">Data Rights Requests
+      {% if pending_count %}<span style="background:var(--danger);color:#fff;border-radius:999px;padding:2px 10px;font-size:0.78rem;margin-left:8px;">{{ pending_count }} pending</span>{% endif %}
+    </h2>
+    <p class="muted" style="margin:0;">Patient rights under DPDP Act 2023 — Sections 11–14. All requests must be resolved within 90 days.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px;">
+  <form method="get" style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label>Filter by status</label>
+      <select name="status" onchange="this.form.submit()">
+        <option value="">All statuses</option>
+        {% for s in statuses %}
+          <option value="{{ s }}" {{ 'selected' if status_filter == s }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if status_filter %}
+      <a href="{{ url_for('data_rights.list_requests') }}" class="btn btn-secondary btn-sm">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if not requests %}
+    <p class="empty-state">No data rights requests{% if status_filter %} with status "{{ status_filter }}"{% endif %} yet.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Patient</th><th>Type</th><th>Requested</th><th>Deadline</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for r in requests %}
+        {% set overdue = r.status == 'Pending' and r.deadline_at < today_str %}
+        <tr>
+          <td>
+            <a href="{{ url_for('patients.patient_detail', patient_id=r.patient_id) }}">{{ r.patient_name }}</a>
+            <br><span class="muted" style="font-size:0.8rem;">{{ r.patient_mobile }}</span>
+          </td>
+          <td><b>{{ r.request_type }}</b></td>
+          <td>{{ r.requested_at[:10] }}</td>
+          <td>
+            {% if overdue %}
+              <span class="badge badge-overdue">{{ r.deadline_at }} OVERDUE</span>
+            {% else %}
+              {{ r.deadline_at }}
+            {% endif %}
+          </td>
+          <td>
+            {% if r.status == 'Pending' %}<span class="badge badge-active">Pending</span>
+            {% elif r.status == 'In Progress' %}<span class="badge" style="background:#F9A825;color:#fff;">In Progress</span>
+            {% elif r.status == 'Completed' %}<span class="badge" style="background:var(--primary-dark);color:#fff;">Completed</span>
+            {% else %}<span class="badge badge-closed">{{ r.status }}</span>{% endif %}
+          </td>
+          <td><a href="{{ url_for('data_rights.view_request', request_id=r.id) }}" class="btn btn-secondary btn-sm">Open</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" style="background:var(--accent); border-color:var(--accent-2);">
+  <p style="margin:0; font-size:0.88rem;"><b>Note:</b> Requests are logged here when a patient exercises their rights under the DPDP Act 2023. They can be raised from a patient's record page. The 90-day resolution deadline is tracked automatically — overdue requests are highlighted in red.</p>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  var today_str = new Date().toISOString().slice(0, 10);
+</script>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Doctors — {{ clinic_name }}{% endblock %}
+{% block content %}
+
+<h2>Doctors</h2>
+<p class="muted">Manage the doctors that can be tagged against a case.</p>
+
+<div class="card" style="max-width:520px;">
+  <form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label>Doctor Name <span class="required-mark">*</span></label>
+      <div style="display:flex; gap:10px;">
+        <input type="text" name="name" placeholder="e.g. Dr. Anjali Rao" required>
+        <button type="submit" class="btn btn-primary">+ Add</button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  {% if not doctors %}
+    <p class="empty-state">No doctors added yet.</p>
+  {% else %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Color</th><th>Name</th><th>Status</th><th>In Use</th><th></th></tr></thead>
+      <tbody>
+      {% for d in doctors %}
+        <tr>
+          <td>
+            <form method="post" action="{{ url_for('doctors.edit_doctor', doctor_id=d.id) }}" style="display:flex; gap:8px; align-items:center;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="color" name="color" value="{{ d.color }}" style="width:40px; height:32px; padding:2px; cursor:pointer;">
+              <input type="hidden" name="name" value="{{ d.name }}">
+              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('doctors.edit_doctor', doctor_id=d.id) }}" style="display:flex; gap:8px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="text" name="name" value="{{ d.name }}" style="max-width:240px;">
+              <input type="hidden" name="color" value="{{ d.color }}">
+              <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            </form>
+          </td>
+          <td>{% if d.active %}<span class="badge badge-active">Active</span>{% else %}<span class="badge badge-closed">Inactive</span>{% endif %}</td>
+          <td>{{ "Yes" if d.in_use else "No" }}</td>
+          <td>
+            <form method="post" action="{{ url_for('doctors.toggle_doctor', doctor_id=d.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-secondary btn-sm">{{ "Deactivate" if d.active else "Reactivate" }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="help-text" style="margin-top:10px;">The color shown here is used to tell doctors apart at a glance on the Appointments calendar. Doctors already tagged on a case can't be removed entirely — deactivate them instead so existing case history stays intact, and they'll disappear from dropdowns on new cases/appointments.</p>
+  {% endif %}
+</div>
+{% endblock %}
